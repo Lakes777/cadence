@@ -20,7 +20,7 @@ milissegundo. **Em construção:** as fases abaixo mostram o que já está pront
 - [ ] **5. Reservas:** restrição de exclusão no Postgres contra horários sobrepostos, `Idempotency-Key` contra clique duplo, cancelamento com antecedência mínima e teste com pedidos simultâneos
 - [ ] **6. Lembretes:** fila (BullMQ + Redis) com o aviso agendado para 24 h antes; cancelar a reserva tira o aviso da fila
 - [ ] **7. Tempo real:** WebSocket: quem está olhando o dia vê o horário sumir quando outra pessoa reserva
-- [ ] **8. Interface:** React + Vite, com identidade visual própria; tela do cliente, painel do dono e um negócio de demonstração
+- [ ] **8. Interface:** React + Vite, com identidade visual própria ("Relógio de ponto", ver [docs/identidade.md](docs/identidade.md)); tela do cliente, painel do dono e um negócio de demonstração
 - [ ] **9. Publicação:** Docker Compose numa VM da Oracle, com HTTPS e vigiado pelo [Vigil](https://github.com/Lakes777/vigil)
 
 ## Rodando

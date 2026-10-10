@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadence · identidades</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;700&family=IBM+Plex+Mono:wght@400;600&family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Kalam:wght@400;700&family=Source+Serif+4:wght@400;600&family=Sora:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --pagina: #ecebe8; --texto: #1d1d1f; --suave: #5f5f66; --linha: #d4d3cf;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--pagina); color: var(--texto); font: 15px/1.5 Inter, system-ui, sans-serif; }
+  .topo { max-width: 1120px; margin: 0 auto; padding: 32px 16px 8px; }
+  .topo h1 { margin: 0 0 4px; font-size: 22px; }
+  .topo p { margin: 0; color: var(--suave); max-width: 70ch; }
+  .atalhos { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  .atalhos a { padding: 6px 12px; border: 1px solid var(--linha); border-radius: 999px; color: var(--texto); text-decoration: none; background: #fff; font-size: 14px; }
+  section.opcao { max-width: 1120px; margin: 32px auto; padding: 0 16px; }
+  .rotulo { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .rotulo h2 { margin: 0; font-size: 18px; }
+  .rotulo span { color: var(--suave); font-size: 14px; }
+  .ficha { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; padding: 0; list-style: none; font-size: 13px; color: var(--suave); }
+  .ficha li { display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid var(--linha); border-radius: 6px; padding: 3px 8px; }
+  .ficha i { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,.15); display: inline-block; }
+  .telas { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 860px) { .telas { grid-template-columns: 1fr; } }
+  .tela { border-radius: 14px; overflow: hidden; min-height: 520px; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.08); }
+  .legenda { font-size: 12px; color: var(--suave); margin: 6px 2px 0; }
+  button { font: inherit; cursor: pointer; }
+  .simular { margin-top: 10px; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--linha); background: #fff; font-size: 13px; }
+
+  /* ---------- A · Relógio de ponto ---------- */
+  .ponto { --papel: #f3ecdc; --tinta: #1b1a17; --carimbo: #b3261e; --fio: #d8ccb2;
+    background: var(--papel); color: var(--tinta); font-family: "IBM Plex Mono", monospace; }
+  .ponto .inicio { padding: 36px 28px; display: flex; flex-direction: column; min-height: 520px; }
+  .ponto .marca { font-family: "Archivo Narrow", sans-serif; font-weight: 700; letter-spacing: .32em; font-size: 13px; text-transform: uppercase; }
+  .ponto .relogio { font-size: clamp(64px, 12vw, 104px); font-weight: 600; letter-spacing: -.04em; line-height: 1; margin: auto 0 8px; }
+  .ponto .relogio small { font-size: .32em; letter-spacing: 0; vertical-align: top; margin-left: 6px; color: var(--carimbo); }
+  .ponto h3 { font-family: "Archivo Narrow", sans-serif; font-size: 30px; line-height: 1.1; margin: 0 0 10px; text-transform: uppercase; }
+  .ponto p { margin: 0 0 24px; max-width: 34ch; font-size: 14px; }
+  .ponto .cta { align-self: flex-start; background: var(--tinta); color: var(--papel); border: 0; padding: 12px 20px; font-family: "Archivo Narrow"; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+  .ponto .cartao { padding: 22px 24px; }
+  .ponto .cab { border: 2px solid var(--tinta); padding: 10px 12px; display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; font-size: 12px; text-transform: uppercase; }
+  .ponto .cab b { font-family: "Archivo Narrow"; font-size: 18px; }
+  .ponto .grade { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); column-gap: 18px; }
+  .ponto .grade li button { width: 100%; display: flex; align-items: center; gap: 10px; background: none; border: 0; border-bottom: 1px dashed var(--fio); padding: 8px 2px; color: inherit; font-family: inherit; font-size: 15px; text-align: left; position: relative; }
+  .ponto .grade li button::before { content: ""; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--tinta); flex: none; }
+  .ponto .grade li button:hover:not(:disabled) { background: #ebe1cb; }
+  .ponto .grade .ocupado button { color: #8c8577; cursor: not-allowed; }
+  .ponto .grade .ocupado button::before { background: var(--tinta); }
+  .ponto .grade .ocupado button::after { content: "OCUPADO"; position: absolute; right: 4px; color: var(--carimbo); border: 1.5px solid var(--carimbo); font-size: 10px; padding: 0 4px; transform: rotate(-6deg); font-weight: 600; letter-spacing: .08em; }
+  .ponto .grade .escolhido button { background: var(--tinta); color: var(--papel); }
+  .ponto .grade .escolhido button::before { border-color: var(--papel); background: var(--carimbo); }
+  .ponto .rodape { margin-top: 16px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; text-transform: uppercase; }
+
+  /* ---------- B · Caderno de recados ---------- */
+  .caderno { --papel: #fbf8f1; --pauta: #c9d6e6; --margem: #d98b84; --tinta: #1f3a68; --lapis: #56606e;
+    color: var(--tinta); font-family: "Source Serif 4", Georgia, serif;
+    background: var(--papel) repeating-linear-gradient(to bottom, transparent 0 31px, var(--pauta) 31px 32px);
+    background-position: 0 14px; }
+  .caderno::before { content: ""; position: absolute; top: 0; bottom: 0; left: 52px; width: 1.5px; background: var(--margem); }
+  .caderno .inicio { padding: 46px 28px 32px 76px; min-height: 520px; display: flex; flex-direction: column; }
+  .caderno .marca { font-family: Fraunces, serif; font-size: 15px; font-style: italic; color: var(--lapis); }
+  .caderno h3 { font-family: Fraunces, serif; font-weight: 600; font-size: clamp(34px, 6vw, 46px); line-height: 1.05; margin: auto 0 14px; }
+  .caderno h3 em { font-family: Kalam, cursive; font-style: normal; font-weight: 400; color: #2c5aa0; }
+  .caderno p { margin: 0 0 26px; max-width: 36ch; font-size: 16px; color: var(--lapis); }
+  .caderno .cta { align-self: flex-start; background: var(--tinta); color: #fff; border: 0; border-radius: 4px; padding: 11px 20px; font-family: Fraunces, serif; font-size: 16px; }
+  .caderno .cartao { padding: 30px 22px 22px 76px; }
+  .caderno .cab { font-family: Fraunces, serif; line-height: 32px; }
+  .caderno .cab b { font-size: 22px; font-weight: 600; }
+  .caderno .cab span { display: block; color: var(--lapis); font-size: 14px; }
+  .caderno .grade { list-style: none; margin: 0; padding: 0; }
+  .caderno .grade li button { width: 100%; height: 32px; display: flex; align-items: flex-end; gap: 16px; background: none; border: 0; padding: 0 0 3px; color: inherit; font-family: "Source Serif 4"; font-size: 15px; text-align: left; position: relative; }
+  .caderno .grade li button .hora { position: absolute; left: -76px; width: 46px; text-align: right; color: var(--lapis); font-variant-numeric: tabular-nums; }
+  .caderno .grade li button .nota { font-family: Kalam, cursive; font-size: 17px; color: #2c5aa0; }
+  .caderno .grade .livre button .nota { color: #9aa7b8; font-family: "Source Serif 4"; font-size: 13px; font-style: italic; }
+  .caderno .grade li button:hover:not(:disabled) .nota { color: var(--tinta); }
+  .caderno .grade .ocupado button { cursor: not-allowed; }
+  .caderno .grade .escolhido button .nota { font-family: Kalam; font-size: 17px; font-style: normal; color: var(--tinta); font-weight: 700; }
+  .caderno .grade .escolhido button { background: linear-gradient(to top, transparent 0 5px, rgba(255, 226, 120, .6) 5px 17px, transparent 17px); }
+  .caderno .rodape { margin-top: 14px; color: var(--lapis); font-size: 13px; font-style: italic; }
+
+  /* ---------- C · Metrônomo ---------- */
+  .metronomo { --fundo: #15171a; --painel: #1d2024; --texto: #e9e7e2; --apagado: #6b7078; --acento: #7aa2f7; --linha: #2b2f35;
+    background: var(--fundo); color: var(--texto); font-family: Inter, sans-serif; }
+  .metronomo .inicio { padding: 34px 28px; min-height: 520px; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+  .metronomo .marca { font-family: Sora, sans-serif; font-weight: 600; letter-spacing: .02em; display: flex; align-items: center; gap: 10px; }
+  .metronomo .marca svg { width: 22px; height: 22px; }
+  .metronomo .batidas { display: flex; align-items: flex-end; gap: 7px; height: 120px; margin: auto 0 26px; }
+  .metronomo .batidas i { width: 6px; background: var(--linha); border-radius: 3px; animation: batida 1.6s ease-in-out infinite; }
+  .metronomo .batidas i:nth-child(4n+1) { background: var(--acento); }
+  @keyframes batida { 0%, 100% { transform: scaleY(.55); } 50% { transform: scaleY(1); } }
+  .metronomo .batidas i { transform-origin: bottom; }
+  @media (prefers-reduced-motion: reduce) { .metronomo .batidas i { animation: none; } }
+  .metronomo h3 { font-family: Sora, sans-serif; font-weight: 700; font-size: clamp(32px, 5.6vw, 44px); letter-spacing: -.03em; line-height: 1.05; margin: 0 0 12px; }
+  .metronomo h3 span { color: var(--acento); }
+  .metronomo p { margin: 0 0 26px; color: #a3a8b0; max-width: 38ch; }
+  .metronomo .cta { align-self: flex-start; background: var(--acento); color: #0d1424; border: 0; border-radius: 10px; padding: 12px 20px; font-family: Sora; font-weight: 600; }
+  .metronomo .cartao { padding: 24px; }
+  .metronomo .cab { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--linha); }
+  .metronomo .cab b { font-family: Sora; font-size: 20px; display: block; }
+  .metronomo .cab span { color: var(--apagado); font-size: 13px; }
+  .metronomo .cab .data { font-family: "JetBrains Mono"; font-size: 13px; color: var(--acento); }
+  .metronomo .grade { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .metronomo .grade li button { width: 100%; padding: 12px 0 10px; background: var(--painel); border: 1px solid var(--linha); border-radius: 10px; color: var(--texto); font-family: "JetBrains Mono"; font-size: 15px; position: relative; transition: border-color .2s, background .2s; }
+  .metronomo .grade li button::after { content: ""; position: absolute; left: 50%; bottom: 4px; width: 14px; height: 2px; margin-left: -7px; background: var(--linha); border-radius: 1px; }
+  .metronomo .grade li button:hover:not(:disabled) { border-color: var(--acento); }
+  .metronomo .grade .ocupado button { color: var(--apagado); text-decoration: line-through; cursor: not-allowed;
+    background: repeating-linear-gradient(135deg, var(--painel) 0 6px, #191b1f 6px 12px); }
+  .metronomo .grade .escolhido button { background: var(--acento); color: #0d1424; border-color: var(--acento); font-weight: 600; }
+  .metronomo .grade .escolhido button::after { background: #0d1424; }
+  .metronomo .rodape { margin-top: 18px; display: flex; justify-content: space-between; color: var(--apagado); font-size: 13px; }
+  .metronomo .rodape b { color: var(--texto); font-weight: 500; }
+
+  /* horário que acabou de ser pego por outra pessoa (fase 7, tempo real) */
+  .sumindo button { animation: sumir 1.2s ease; }
+  @keyframes sumir { 0% { outline: 2px solid #e5484d; outline-offset: -2px; } 100% { outline: 2px solid transparent; outline-offset: -2px; } }
+</style>
+</head>
+<body>
+<header class="topo">
+  <h1>Cadence · três identidades</h1>
+  <p>Cada opção mostra a tela de início e a tela de escolher horário (Barbearia Exemplo, com o Rafael). Clique num
+     horário livre para escolher. O botão abaixo de cada uma imita outra pessoa reservando ao vivo, como vai ser na fase 7.</p>
+  <nav class="atalhos"><a href="#a">A · Relógio de ponto</a><a href="#b">B · Caderno de recados</a><a href="#c">C · Metrônomo</a></nav>
+</header>
+
+<section class="opcao" id="a">
+  <div class="rotulo"><h2>A · Relógio de ponto</h2><span>o cartão de ponto da fábrica: creme, tinta preta e um carimbo vermelho</span></div>
+  <ul class="ficha">
+    <li><i style="background:#f3ecdc"></i>papel #f3ecdc</li><li><i style="background:#1b1a17"></i>tinta #1b1a17</li>
+    <li><i style="background:#b3261e"></i>carimbo #b3261e</li><li>Archivo Narrow + IBM Plex Mono</li>
+  </ul>
+  <div class="telas">
+    <div>
+      <div class="tela ponto"><div class="inicio">
+        <div class="marca">Cadence</div>
+        <div class="relogio">09:30<small>LIVRE</small></div>
+        <h3>Bata o ponto<br>no seu horário.</h3>
+        <p>Escolha o serviço, o profissional e o horário. Ninguém mais pega o mesmo.</p>
+        <button class="cta">Reservar horário</button>
+      </div></div>
+      <p class="legenda">Tela de início</p>
+    </div>
+    <div>
+      <div class="tela ponto"><div class="cartao">
+        <div class="cab"><b>Barbearia Exemplo</b><b>SÁB 17/10</b><span>Rafael · Corte 30 min</span><span>R$ 45</span></div>
+        <ul class="grade" data-grade></ul>
+        <div class="rodape"><span data-escolha>Nenhum horário escolhido</span><button class="cta" style="padding:8px 14px;font-size:12px">Confirmar</button></div>
+      </div></div>
+      <p class="legenda">Escolher horário</p>
+      <button class="simular" data-simular>Simular outra pessoa reservando</button>
+    </div>
+  </div>
+</section>
+
+<section class="opcao" id="b">
+  <div class="rotulo"><h2>B · Caderno de recados</h2><span>o livro de agendamento do balcão: papel pautado, margem vermelha, caneta azul-marinho</span></div>
+  <ul class="ficha">
+    <li><i style="background:#fbf8f1"></i>papel #fbf8f1</li><li><i style="background:#1f3a68"></i>marinho #1f3a68</li>
+    <li><i style="background:#d98b84"></i>margem #d98b84</li><li>Fraunces + Source Serif 4 + Kalam (letra à mão)</li>
+  </ul>
+  <div class="telas">
+    <div>
+      <div class="tela caderno"><div class="inicio">
+        <div class="marca">Cadence · agenda do balcão</div>
+        <h3>Seu nome na <em>linha certa</em> da agenda.</h3>
+        <p>Como o caderno do balcão, só que ninguém escreve por cima do seu horário.</p>
+        <button class="cta">Reservar horário</button>
+      </div></div>
+      <p class="legenda">Tela de início</p>
+    </div>
+    <div>
+      <div class="tela caderno"><div class="cartao">
+        <div class="cab"><b>Sábado, 17 de outubro</b><span>Rafael · Corte (30 min) · R$ 45</span></div>
+        <ul class="grade" data-grade></ul>
+        <div class="rodape" data-escolha>Nenhum horário escolhido</div>
+      </div></div>
+      <p class="legenda">Escolher horário (os ocupados aparecem com as iniciais, escritos à mão)</p>
+      <button class="simular" data-simular>Simular outra pessoa reservando</button>
+    </div>
+  </div>
+</section>
+
+<section class="opcao" id="c">
+  <div class="rotulo"><h2>C · Metrônomo</h2><span>puxa o nome: grafite, um único acento azul e o ritmo das batidas</span></div>
+  <ul class="ficha">
+    <li><i style="background:#15171a"></i>grafite #15171a</li><li><i style="background:#1d2024"></i>painel #1d2024</li>
+    <li><i style="background:#7aa2f7"></i>acento #7aa2f7</li><li>Sora + Inter + JetBrains Mono</li>
+  </ul>
+  <div class="telas">
+    <div>
+      <div class="tela metronomo"><div class="inicio">
+        <div class="marca"><svg viewBox="0 0 24 24" fill="none" stroke="#7aa2f7" stroke-width="2" stroke-linecap="round"><path d="M8 21h8l-3-17h-2z"/><path d="M12 15l5-9"/></svg>Cadence</div>
+        <div class="batidas" aria-hidden="true"></div>
+        <h3>Cada horário<br>no seu <span>tempo</span>.</h3>
+        <p>Escolha o serviço e o horário. Quando alguém reserva, o horário some na hora para todo mundo.</p>
+        <button class="cta">Reservar horário</button>
+      </div></div>
+      <p class="legenda">Tela de início (as barras pulsam devagar; param se o sistema pedir menos movimento)</p>
+    </div>
+    <div>
+      <div class="tela metronomo"><div class="cartao">
+        <div class="cab"><div><b>Barbearia Exemplo</b><span>Rafael · Corte 30 min · R$ 45</span></div><div class="data">SÁB 17/10</div></div>
+        <ul class="grade" data-grade></ul>
+        <div class="rodape"><span data-escolha>Nenhum horário escolhido</span><span><b data-livres></b> livres</span></div>
+      </div></div>
+      <p class="legenda">Escolher horário</p>
+      <button class="simular" data-simular>Simular outra pessoa reservando</button>
+    </div>
+  </div>
+</section>
+
+<script>
+  const HORARIOS = [];
+  for (let m = 9 * 60; m <= 17 * 60 + 30; m += 30) {
+    if (m >= 12 * 60 && m < 13 * 60) continue; // almoço
+    HORARIOS.push(String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"));
+  }
+  const OCUPADOS = { "09:00": "J. M.", "10:30": "Paulo S.", "11:00": "R. A.", "14:00": "Diego", "15:30": "M. L.", "16:00": "Caio" };
+  const INICIAIS = ["Ana", "B. T.", "Léo", "G. F.", "Vitor", "S. C."];
+
+  document.querySelectorAll(".opcao").forEach((secao) => {
+    const grade = secao.querySelector("[data-grade]");
+    const escolha = secao.querySelector("[data-escolha]");
+    const livres = secao.querySelector("[data-livres]");
+    const caderno = secao.querySelector(".caderno") !== null;
+    const ocupados = { ...OCUPADOS };
+    let escolhido = null;
+
+    function desenhar(sumiu) {
+      grade.innerHTML = "";
+      for (const h of HORARIOS) {
+        const li = document.createElement("li");
+        const b = document.createElement("button");
+        const ocupado = h in ocupados;
+        li.className = ocupado ? "ocupado" : h === escolhido ? "escolhido" : "livre";
+        if (h === sumiu) li.classList.add("sumindo");
+        b.disabled = ocupado;
+        if (caderno) {
+          b.innerHTML = `<span class="hora">${h}</span><span class="nota">${ocupado ? ocupados[h] : h === escolhido ? "você" : "livre"}</span>`;
+        } else {
+          b.textContent = h;
+        }
+        b.setAttribute("aria-label", h + (ocupado ? ", ocupado" : ", livre"));
+        b.addEventListener("click", () => { escolhido = h; desenhar(); });
+        li.append(b);
+        grade.append(li);
+      }
+      escolha.textContent = escolhido ? "Escolhido: sábado às " + escolhido : "Nenhum horário escolhido";
+      if (livres) livres.textContent = HORARIOS.filter((h) => !(h in ocupados)).length;
+    }
+
+    secao.querySelector("[data-simular]").addEventListener("click", () => {
+      const candidatos = HORARIOS.filter((h) => !(h in ocupados));
+      if (!candidatos.length) return;
+      // às vezes pega justamente o que você escolheu, para mostrar o aviso
+      const alvo = escolhido && Math.random() < 0.4 ? escolhido : candidatos[Math.floor(Math.random() * candidatos.length)];
+      ocupados[alvo] = INICIAIS[Math.floor(Math.random() * INICIAIS.length)];
+      if (alvo === escolhido) {
+        escolhido = null;
+        desenhar(alvo);
+        escolha.textContent = "Alguém reservou " + alvo + " antes de você. Escolha outro horário.";
+      } else {
+        desenhar(alvo);
+      }
+    });
+
+    desenhar();
+  });
+
+  const batidas = document.querySelector(".batidas");
+  for (let i = 0; i < 24; i++) {
+    const barra = document.createElement("i");
+    barra.style.height = (40 + ((i * 37) % 60)) + "%";
+    barra.style.animationDelay = (i * 0.07) + "s";
+    batidas.append(barra);
+  }
+</script>
+</body>
+</html>
