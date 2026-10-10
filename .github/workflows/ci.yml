@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# O token do CI só lê o repositório
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Cliente do Prisma (gerado a partir do esquema)
+        run: npm run gerar
+      - name: Formatação (Prettier)
+        run: npm run format:conferir
+      - name: Lint (oxlint, com tipos)
+        run: npm run lint
+      - name: Tipos (tsc)
+        run: npm run tipos
+      - run: npm run build
+      - name: Testes de unidade
+        run: npm test
+      - name: Testes de ponta a ponta (Testcontainers sobe o Postgres)
+        run: npm run test:e2e

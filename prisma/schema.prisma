@@ -1,0 +1,13 @@
+// Esquema do banco. As tabelas entram a partir da fase 2; o que o Prisma não sabe
+// descrever (como a restrição contra reserva dupla) vai em SQL dentro da migração.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}

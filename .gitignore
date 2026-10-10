@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Cliente gerado pelo Prisma (npm run gerar)
+/src/generated/
+
+# Segredos
+.env
+
+# Worktrees dos subagentes do Claude Code
+.claude/

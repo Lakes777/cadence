@@ -1,0 +1,15 @@
+# Postgres para desenvolvimento (os testes sobem o próprio, com o Testcontainers)
+services:
+  banco:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: cadence
+      POSTGRES_PASSWORD: cadence
+      POSTGRES_DB: cadence
+    ports:
+      - '127.0.0.1:5434:5432'
+    volumes:
+      - banco:/var/lib/postgresql
+
+volumes:
+  banco:
