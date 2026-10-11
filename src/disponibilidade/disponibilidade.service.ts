@@ -6,7 +6,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../banco/prisma.service.js';
 import { RELOGIO, type Relogio } from '../comum/relogio.js';
-import { calcularHorarios } from './calculo.js';
+import type { Negocio, Servico } from '../generated/prisma/client.js';
+import { calcularHorarios, type HorarioLivre } from './calculo.js';
 import type { Consulta } from './disponibilidade.dto.js';
 import {
   dataLocal,
@@ -14,6 +15,7 @@ import {
   diasEntre,
   localParaUtcOuDepois,
   textoDaData,
+  type DataLocal,
 } from './fuso.js';
 
 /** Quanto antes é preciso reservar: ninguém marca para daqui a 5 minutos */
@@ -46,21 +48,14 @@ export class DisponibilidadeService {
     slug: string,
     { servicoId, data, profissionalId }: Consulta,
   ): Promise<DisponibilidadeResposta> {
-    const negocio = await this.prisma.negocio.findUnique({ where: { slug } });
-    if (!negocio) throw new NotFoundException('Negócio não encontrado');
-    const servico = await this.prisma.servico.findFirst({
-      where: { id: servicoId, negocioId: negocio.id, ativo: true },
-    });
-    if (!servico) throw new NotFoundException('Serviço não encontrado');
-
-    const agora = this.relogio.agora();
-    const distancia = diasEntre(dataLocal(agora, negocio.fuso), data);
-    if (distancia > JANELA_DIAS) {
-      throw new BadRequestException(
-        `A agenda abre só ${JANELA_DIAS} dias à frente`,
-      );
-    }
-    const resposta: DisponibilidadeResposta = {
+    const { negocio, servico } = await this.negocioEServico(slug, servicoId);
+    const horarios = await this.horariosDoDia(
+      negocio,
+      servico,
+      data,
+      profissionalId,
+    );
+    return {
       data: textoDaData(data),
       fuso: negocio.fuso,
       servico: {
@@ -68,50 +63,94 @@ export class DisponibilidadeService {
         nome: servico.nome,
         duracaoMin: servico.duracaoMin,
       },
-      horarios: [],
+      horarios: horarios.map((h) => ({
+        inicio: h.inicio.toISOString(),
+        fim: h.fim.toISOString(),
+        hora: h.hora,
+        profissionalIds: [...h.profissionalIds].sort(),
+      })),
     };
-    if (distancia < 0) return resposta; // dia que já passou
+  }
 
-    const dia = diaDaSemana(data);
+  /** O negócio pelo endereço e um serviço ativo dele (404 se algum não existir). */
+  async negocioEServico(
+    slug: string,
+    servicoId: string,
+  ): Promise<{ negocio: Negocio; servico: Servico }> {
+    const negocio = await this.prisma.negocio.findUnique({ where: { slug } });
+    if (!negocio) throw new NotFoundException('Negócio não encontrado');
+    const servico = await this.prisma.servico.findFirst({
+      where: { id: servicoId, negocioId: negocio.id, ativo: true },
+    });
+    if (!servico) throw new NotFoundException('Serviço não encontrado');
+    return { negocio, servico };
+  }
+
+  /**
+   * Os horários livres do dia (data local no fuso do negócio), já descontando bloqueios e
+   * reservas confirmadas. É a mesma conta que a reserva usa para conferir o horário pedido.
+   */
+  async horariosDoDia(
+    negocio: Negocio,
+    servico: Servico,
+    data: DataLocal,
+    profissionalId?: string,
+  ): Promise<HorarioLivre[]> {
+    const agora = this.relogio.agora();
+    const distancia = diasEntre(dataLocal(agora, negocio.fuso), data);
+    if (distancia > JANELA_DIAS) {
+      throw new BadRequestException(
+        `A agenda abre só ${JANELA_DIAS} dias à frente`,
+      );
+    }
+    if (distancia < 0) return []; // dia que já passou
+
     const profissionais = await this.prisma.profissional.findMany({
       where: {
         negocioId: negocio.id,
         ativo: true,
-        servicos: { some: { servicoId } },
+        servicos: { some: { servicoId: servico.id } },
         ...(profissionalId ? { id: profissionalId } : {}),
       },
       select: {
         id: true,
         horarios: {
-          where: { diaDaSemana: dia },
+          where: { diaDaSemana: diaDaSemana(data) },
           select: { inicioMin: true, fimMin: true },
         },
       },
     });
-    if (!profissionais.length) return resposta;
+    if (!profissionais.length) return [];
+    const ids = profissionais.map((p) => p.id);
 
     // Tudo que pode tocar o dia: da meia-noite local até a seguinte, com folga de um dia
-    // para os lados (fuso e horário de verão não deixam a conta exata valer a pena)
-    // (em Santiago, no dia da mudança, a meia-noite não existe: vale o pulo)
+    // para os lados (fuso e horário de verão não deixam a conta exata valer a pena).
+    // Em Santiago, no dia da mudança, a meia-noite não existe: vale o pulo.
     const comeco = localParaUtcOuDepois(data, 0, negocio.fuso);
-    const janela = {
-      de: new Date(comeco.getTime() - DIA_MS),
-      ate: new Date(comeco.getTime() + 2 * DIA_MS),
-    };
-    const bloqueios = await this.prisma.bloqueio.findMany({
-      where: {
-        negocioId: negocio.id,
-        inicio: { lt: janela.ate },
-        fim: { gt: janela.de },
-        OR: [
-          { profissionalId: null },
-          { profissionalId: { in: profissionais.map((p) => p.id) } },
-        ],
-      },
-      select: { profissionalId: true, inicio: true, fim: true },
-    });
+    const de = new Date(comeco.getTime() - DIA_MS);
+    const ate = new Date(comeco.getTime() + 2 * DIA_MS);
+    const [bloqueios, ocupados] = await Promise.all([
+      this.prisma.bloqueio.findMany({
+        where: {
+          negocioId: negocio.id,
+          inicio: { lt: ate },
+          fim: { gt: de },
+          OR: [{ profissionalId: null }, { profissionalId: { in: ids } }],
+        },
+        select: { profissionalId: true, inicio: true, fim: true },
+      }),
+      this.prisma.reserva.findMany({
+        where: {
+          profissionalId: { in: ids },
+          status: 'confirmada',
+          inicio: { lt: ate },
+          fim: { gt: de },
+        },
+        select: { profissionalId: true, inicio: true, fim: true },
+      }),
+    ]);
 
-    resposta.horarios = calcularHorarios({
+    return calcularHorarios({
       data,
       fuso: negocio.fuso,
       duracaoMin: servico.duracaoMin,
@@ -120,14 +159,8 @@ export class DisponibilidadeService {
         intervalos: p.horarios,
       })),
       bloqueios,
-      ocupados: [], // reservas: fase 5
+      ocupados,
       aPartirDe: new Date(agora.getTime() + ANTECEDENCIA_MIN * 60_000),
-    }).map((h) => ({
-      inicio: h.inicio.toISOString(),
-      fim: h.fim.toISOString(),
-      hora: h.hora,
-      profissionalIds: h.profissionalIds.sort(),
-    }));
-    return resposta;
+    });
   }
 }

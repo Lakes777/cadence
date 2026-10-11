@@ -10,5 +10,7 @@ export default defineConfig({
     globalSetup: ['test/preparar-banco.ts'],
     // Baixar a imagem do Postgres na primeira vez pode demorar
     hookTimeout: 120_000,
+    // Os testes de concorrência criam dezenas de contas (scrypt) e disparam pedidos juntos
+    testTimeout: 30_000,
   },
 });

@@ -29,6 +29,7 @@ model Usuario {
 
   tokensDeRenovacao TokenDeRenovacao[]
   negocios          Negocio[]
+  reservas          Reserva[]
 
   @@map("usuarios")
 }
@@ -69,6 +70,7 @@ model Negocio {
   profissionais Profissional[]
   servicos      Servico[]
   bloqueios     Bloqueio[]
+  reservas      Reserva[]
 
   @@index([donoId])
   @@map("negocios")
@@ -86,6 +88,7 @@ model Profissional {
   servicos  ProfissionalServico[]
   horarios  HorarioDeTrabalho[]
   bloqueios Bloqueio[]
+  reservas  Reserva[]
 
   @@unique([id, negocioId])
   @@index([negocioId])
@@ -104,6 +107,7 @@ model Servico {
 
   negocio       Negocio               @relation(fields: [negocioId], references: [id], onDelete: Cascade)
   profissionais ProfissionalServico[]
+  reservas      Reserva[]
 
   @@unique([id, negocioId])
   @@index([negocioId])
@@ -157,4 +161,41 @@ model Bloqueio {
   @@index([negocioId, inicio])
   @@index([profissionalId])
   @@map("bloqueios")
+}
+
+enum StatusDaReserva {
+  confirmada
+  cancelada
+}
+
+/// Uma reserva ocupa o profissional de `inicio` a `fim`. O banco não deixa duas confirmadas do
+/// mesmo profissional se sobreporem (EXCLUDE na migração): é isso que impede a reserva dupla,
+/// mesmo com pedidos chegando no mesmo milissegundo.
+model Reserva {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  negocioId         String          @map("negocio_id") @db.Uuid
+  profissionalId    String          @map("profissional_id") @db.Uuid
+  servicoId         String          @map("servico_id") @db.Uuid
+  clienteId         String          @map("cliente_id") @db.Uuid
+  inicio            DateTime        @db.Timestamptz(3)
+  fim               DateTime        @db.Timestamptz(3)
+  /// Preço do serviço no momento da reserva (o dono pode mudar o preço depois)
+  precoCentavos     Int             @map("preco_centavos")
+  status            StatusDaReserva @default(confirmada)
+  canceladaEm       DateTime?       @map("cancelada_em") @db.Timestamptz(3)
+  /// O cabeçalho Idempotency-Key do pedido que criou a reserva, e um hash do corpo
+  chaveIdempotencia String          @map("chave_idempotencia")
+  hashDoPedido      String          @map("hash_do_pedido")
+  criadoEm          DateTime        @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  negocio      Negocio      @relation(fields: [negocioId], references: [id], onDelete: Cascade)
+  profissional Profissional @relation(fields: [profissionalId, negocioId], references: [id, negocioId], onDelete: Restrict)
+  servico      Servico      @relation(fields: [servicoId, negocioId], references: [id, negocioId], onDelete: Restrict)
+  cliente      Usuario      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@unique([clienteId, chaveIdempotencia])
+  @@index([negocioId, inicio])
+  @@index([profissionalId, inicio])
+  @@index([clienteId, inicio])
+  @@map("reservas")
 }

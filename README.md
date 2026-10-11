@@ -17,7 +17,7 @@ milissegundo. **Em construção:** as fases abaixo mostram o que já está pront
 - [x] **2. Contas e papéis:** cadastro e login (senha com scrypt), token de acesso de 15 min + token de renovação rotativo em cookie httpOnly com detecção de reuso, papéis de dono e cliente, limite de tentativas por IP
 - [x] **3. Catálogo:** negócio com endereço público, profissionais, serviços (duração e preço), quem faz o quê, horário semanal (o banco recusa intervalos sobrepostos) e bloqueios (folga, feriado); cada dono só enxerga o que é dele
 - [x] **4. Disponibilidade:** horários livres do dia por serviço, no fuso do negócio (conversão feita à mão com `Intl`, testada nos dias de horário de verão), com bloqueios, antecedência mínima e janela de 60 dias
-- [ ] **5. Reservas:** restrição de exclusão no Postgres contra horários sobrepostos, `Idempotency-Key` contra clique duplo, cancelamento com antecedência mínima e teste com pedidos simultâneos
+- [x] **5. Reservas:** restrição de exclusão no Postgres contra horários sobrepostos, `Idempotency-Key` contra clique duplo, cancelamento com antecedência mínima, agenda do dono e teste com 50 pedidos simultâneos no mesmo horário
 - [ ] **6. Lembretes:** fila (BullMQ + Redis) com o aviso agendado para 24 h antes; cancelar a reserva tira o aviso da fila
 - [ ] **7. Tempo real:** WebSocket: quem está olhando o dia vê o horário sumir quando outra pessoa reserva
 - [ ] **8. Interface:** React + Vite (renovação do token em fila única entre as abas), com identidade visual própria ("Relógio de ponto", ver [docs/identidade.md](docs/identidade.md)); tela do cliente, painel do dono e um negócio de demonstração
@@ -48,6 +48,7 @@ Lida do ambiente e validada na partida: se algo estiver errado, a API não sobe 
 | `NODE_ENV` | `production` | `development` mostra os logs legíveis (o `.env.exemplo` já vem assim); os outros, em JSON |
 | `NIVEL_DO_LOG` | `info` | `fatal` a `trace`, ou `silent` |
 | `JWT_SEGREDO` | (obrigatório) | assina os tokens de acesso; pelo menos 32 caracteres (`openssl rand -hex 32`) |
+| `PEDIDOS_PUBLICOS_POR_MINUTO` | `120` | pedidos por IP a cada minuto em cada rota pública (vitrine, disponibilidade, reservar); limite separado do de conta |
 | `PEDIDOS_DE_CONTA_POR_MINUTO` | `10` | pedidos por IP a cada minuto em **cada** rota de conta (cadastro, entrar, renovar); o excesso leva `429` |
 | `CONFIANCA_NO_PROXY` | `loopback` | de quem aceitar o `X-Forwarded-For` (o IP real usado no limite e nos logs): `loopback`, `uniquelocal`, IPs ou sub-redes separados por vírgula. Com o Caddy em container, use a sub-rede do Docker; sem isso, todo mundo divide o mesmo limite |
 
@@ -169,7 +170,58 @@ de ponta a ponta o param numa segunda-feira conhecida.
 (Lisboa e Nova York nos dois sentidos, Santiago com a meia-noite que não existe): quando o relógio pula, a hora que não existe não é oferecida; quando
 volta, a hora repetida é oferecida uma vez só, e a duração é sempre a real (30 min são 30 min,
 mesmo atravessando a mudança). Se o fim do expediente cair na hora que não existe, ele acaba no
-pulo do relógio. Antes de ir para o ar, a rota pública ganha limite de pedidos por IP.
+pulo do relógio. As rotas públicas têm limite de pedidos por IP (`PEDIDOS_PUBLICOS_POR_MINUTO`).
+
+## Reservas
+
+| Rota | Quem | O que faz |
+|---|---|---|
+| `POST /negocios/:slug/reservas` | qualquer pessoa logada | `{servicoId, profissionalId?, inicio}` com o cabeçalho `Idempotency-Key` → `201` |
+| `GET /reservas` | quem reservou | as próprias reservas; `?periodo=proximas` (padrão) ou `anteriores` |
+| `POST /reservas/:id/cancelar` | quem reservou ou o dono | cancela → `200` |
+| `GET /negocios/:id/agenda` | dono | as reservas do negócio com o nome e o e-mail de quem reservou; `?de=&ate=` (até 1 ano) |
+
+**Sem reserva dupla, em duas camadas.** A API só aceita um `inicio` que a disponibilidade
+ofereceria naquele momento (mesmo cálculo da fase 4, agora descontando as reservas). Mas entre
+conferir e gravar há uma janela, e dois pedidos podem passar juntos pela conferência. Quem fecha
+essa janela é o Postgres:
+
+```sql
+ALTER TABLE reservas ADD CONSTRAINT reservas_sem_sobreposicao
+    EXCLUDE USING gist (profissional_id WITH =, tstzrange(inicio, fim, '[)') WITH &&)
+    WHERE (status = 'confirmada');
+```
+
+Duas reservas confirmadas do mesmo profissional não podem se sobrepor (encostar pode: `[)`),
+seja qual for o serviço. Quem chega depois recebe o erro `23P01` e a API responde `409`. Sem
+profissional escolhido, a API tenta o próximo que estava livre. Reserva cancelada não ocupa.
+O teste dispara **50 clientes no mesmo horário ao mesmo tempo** e confere que exatamente um
+consegue (e que o banco tem uma reserva só); com duas profissionais livres, exatamente dois
+conseguem, um com cada.
+
+**Clique duplo (`Idempotency-Key`).** Toda reserva exige o cabeçalho (a interface gera um UUID
+por tentativa). O mesmo cliente repetindo a mesma chave com o mesmo pedido recebe a **mesma**
+reserva com `200`, em vez de criar outra; a mesma chave com outro pedido é `422`. A chave fica
+gravada na reserva (única por cliente). O teste manda 10 cópias simultâneas e confere que sai uma
+reserva só. Foi esse teste que mostrou que a cópia atrasada pode esbarrar primeiro na própria
+reserva que a outra acabou de criar (não na chave), por isso todo conflito confere a chave antes
+de responder `409`.
+
+**Cancelamento:** o cliente cancela até **2 h antes**; depois disso só o dono, e ninguém depois
+que o atendimento começou (`422`). Quem não é o cliente nem o dono recebe `404`. Cancelar de novo
+devolve a reserva como está. O preço fica gravado na reserva no momento em que ela é feita.
+
+**Escolhas conscientes:**
+- A restrição vale **por profissional**: o mesmo cliente pode ter duas reservas no mesmo horário
+  com profissionais diferentes (pai e filho cortando o cabelo juntos). O clique duplo é coberto
+  pela `Idempotency-Key`, que a interface gera uma vez por tentativa, não por clique.
+- Um bloqueio criado depois **não cancela** reservas já marcadas naquele período: o dono vê as
+  duas coisas na agenda e decide o que fazer com cada cliente.
+- `GET /reservas` traz as 100 próximas (ou as 100 últimas); a agenda do dono responde `400`
+  pedindo um período menor se houver mais de 1000 reservas, em vez de cortar a lista calada.
+
+**Privacidade:** a disponibilidade pública só diz que o horário não está livre, nunca quem
+reservou; só o dono vê os clientes, e só os do próprio negócio.
 
 ## Saúde
 

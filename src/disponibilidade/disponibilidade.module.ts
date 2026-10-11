@@ -10,6 +10,6 @@ import { DisponibilidadeService } from './disponibilidade.service.js';
     DisponibilidadeService,
     { provide: RELOGIO, useValue: relogioDoSistema },
   ],
-  exports: [DisponibilidadeService],
+  exports: [DisponibilidadeService, RELOGIO],
 })
 export class DisponibilidadeModule {}
