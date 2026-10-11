@@ -16,7 +16,7 @@ milissegundo. **Em construção:** as fases abaixo mostram o que já está pront
 - [x] **1. Esqueleto:** NestJS 12 com TypeScript `strict`, configuração validada na partida (zod), PostgreSQL com Prisma, `/saude`, logs estruturados (pino) com id por pedido, testes com Testcontainers, CI com lint
 - [x] **2. Contas e papéis:** cadastro e login (senha com scrypt), token de acesso de 15 min + token de renovação rotativo em cookie httpOnly com detecção de reuso, papéis de dono e cliente, limite de tentativas por IP
 - [x] **3. Catálogo:** negócio com endereço público, profissionais, serviços (duração e preço), quem faz o quê, horário semanal (o banco recusa intervalos sobrepostos) e bloqueios (folga, feriado); cada dono só enxerga o que é dele
-- [ ] **4. Disponibilidade:** cálculo dos horários livres do dia (guardado em UTC, mostrado no fuso de São Paulo)
+- [x] **4. Disponibilidade:** horários livres do dia por serviço, no fuso do negócio (conversão feita à mão com `Intl`, testada nos dias de horário de verão), com bloqueios, antecedência mínima e janela de 60 dias
 - [ ] **5. Reservas:** restrição de exclusão no Postgres contra horários sobrepostos, `Idempotency-Key` contra clique duplo, cancelamento com antecedência mínima e teste com pedidos simultâneos
 - [ ] **6. Lembretes:** fila (BullMQ + Redis) com o aviso agendado para 24 h antes; cancelar a reserva tira o aviso da fila
 - [ ] **7. Tempo real:** WebSocket: quem está olhando o dia vê o horário sumir quando outra pessoa reserva
@@ -134,6 +134,42 @@ se sobreporem no mesmo dia. As ligações também não misturam negócios no ban
 faz o quê" tem chaves estrangeiras compostas com o `negocio_id`, e um gatilho confere que o
 profissional de um bloqueio é do mesmo negócio. Duas trocas de horário ao mesmo tempo entram em fila
 (`SELECT ... FOR UPDATE` no profissional); o teste dispara 6 juntas.
+
+## Disponibilidade
+
+`GET /negocios/:slug/disponibilidade?servicoId=...&data=2026-10-12[&profissionalId=...]`, sem
+login, devolve os horários livres daquele dia para o serviço:
+
+```json
+{
+  "data": "2026-10-12",
+  "fuso": "America/Sao_Paulo",
+  "servico": { "id": "...", "nome": "Corte", "duracaoMin": 30 },
+  "horarios": [
+    { "inicio": "2026-10-12T12:00:00.000Z", "fim": "2026-10-12T12:30:00.000Z",
+      "hora": "09:00", "profissionalIds": ["..."] }
+  ]
+}
+```
+
+- Os horários começam a cada 15 min dentro do expediente de cada profissional ativo que faz o
+  serviço, e só entram se o atendimento inteiro couber no expediente e não encostar em nenhum
+  bloqueio (dele ou do negócio todo). Quem pode atender no mesmo horário aparece junto.
+- Nada começa em menos de **30 min** a partir de agora; a agenda abre **60 dias** à frente
+  (`400` depois disso); dia que já passou volta vazio.
+- `data` é o dia no **fuso do negócio**; `inicio` e `fim` saem em UTC e `hora` no relógio local.
+
+O cálculo é uma função pura (`src/disponibilidade/calculo.ts`): recebe o dia, o fuso, a duração,
+os expedientes, os bloqueios, as reservas (a partir da fase 5) e "agora", e devolve os horários.
+Por isso é testada sem banco e sem relógio. O relógio da API é injetado (`RELOGIO`), e os testes
+de ponta a ponta o param numa segunda-feira conhecida.
+
+**Fuso sem biblioteca:** a conversão de "09:00 de tal dia em tal fuso" para UTC usa só `Intl`
+(`src/disponibilidade/fuso.ts`). Os testes cobrem os dois dias difíceis do horário de verão
+(Lisboa e Nova York nos dois sentidos, Santiago com a meia-noite que não existe): quando o relógio pula, a hora que não existe não é oferecida; quando
+volta, a hora repetida é oferecida uma vez só, e a duração é sempre a real (30 min são 30 min,
+mesmo atravessando a mudança). Se o fim do expediente cair na hora que não existe, ele acaba no
+pulo do relógio. Antes de ir para o ar, a rota pública ganha limite de pedidos por IP.
 
 ## Saúde
 

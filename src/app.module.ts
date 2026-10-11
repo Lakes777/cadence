@@ -6,6 +6,7 @@ import { BancoModule } from './banco/banco.module.js';
 import { CatalogoModule } from './catalogo/catalogo.module.js';
 import { CONFIG, type Config } from './config/config.js';
 import { ConfigModule } from './config/config.module.js';
+import { DisponibilidadeModule } from './disponibilidade/disponibilidade.module.js';
 import { SaudeModule } from './saude/saude.module.js';
 
 const ID_DO_PEDIDO = /^[\w-]{1,64}$/;
@@ -45,6 +46,7 @@ const ID_DO_PEDIDO = /^[\w-]{1,64}$/;
     BancoModule,
     AuthModule,
     CatalogoModule,
+    DisponibilidadeModule,
     SaudeModule,
   ],
 })

@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
-import { Test } from '@nestjs/testing';
+import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import type { App } from 'supertest/types.js';
 import { inject } from 'vitest';
 import { AppModule } from '../src/app.module.js';
@@ -8,10 +8,12 @@ import { configurarApp } from '../src/configurar-app.js';
 
 /**
  * Sobe a aplicação inteira (módulos reais, banco do Testcontainers), sem abrir porta.
- * `env` troca variáveis só desta aplicação (ex.: um limite de pedidos menor).
+ * `env` troca variáveis só desta aplicação (ex.: um limite de pedidos menor) e `ajustar` troca
+ * peças do módulo (ex.: o relógio).
  */
 export async function criarApp(
   env: Record<string, string> = {},
+  ajustar: (modulo: TestingModuleBuilder) => TestingModuleBuilder = (m) => m,
 ): Promise<INestApplication<App>> {
   Object.assign(process.env, {
     DATABASE_URL: inject('urlDoBanco'),
@@ -22,9 +24,9 @@ export async function criarApp(
     PEDIDOS_DE_CONTA_POR_MINUTO: '1000',
     ...env,
   });
-  const modulo = await Test.createTestingModule({
-    imports: [AppModule],
-  }).compile();
+  const modulo = await ajustar(
+    Test.createTestingModule({ imports: [AppModule] }),
+  ).compile();
   const app = modulo.createNestApplication<NestExpressApplication>();
   configurarApp(app);
   app.enableShutdownHooks();
