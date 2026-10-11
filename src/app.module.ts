@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module.js';
 import { BancoModule } from './banco/banco.module.js';
+import { CatalogoModule } from './catalogo/catalogo.module.js';
 import { CONFIG, type Config } from './config/config.js';
 import { ConfigModule } from './config/config.module.js';
 import { SaudeModule } from './saude/saude.module.js';
@@ -43,6 +44,7 @@ const ID_DO_PEDIDO = /^[\w-]{1,64}$/;
     }),
     BancoModule,
     AuthModule,
+    CatalogoModule,
     SaudeModule,
   ],
 })

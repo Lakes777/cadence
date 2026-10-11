@@ -15,7 +15,7 @@ milissegundo. **Em construção:** as fases abaixo mostram o que já está pront
 
 - [x] **1. Esqueleto:** NestJS 12 com TypeScript `strict`, configuração validada na partida (zod), PostgreSQL com Prisma, `/saude`, logs estruturados (pino) com id por pedido, testes com Testcontainers, CI com lint
 - [x] **2. Contas e papéis:** cadastro e login (senha com scrypt), token de acesso de 15 min + token de renovação rotativo em cookie httpOnly com detecção de reuso, papéis de dono e cliente, limite de tentativas por IP
-- [ ] **3. Catálogo:** negócio, profissionais, serviços (duração e preço), horário de funcionamento e bloqueios (folga, feriado)
+- [x] **3. Catálogo:** negócio com endereço público, profissionais, serviços (duração e preço), quem faz o quê, horário semanal (o banco recusa intervalos sobrepostos) e bloqueios (folga, feriado); cada dono só enxerga o que é dele
 - [ ] **4. Disponibilidade:** cálculo dos horários livres do dia (guardado em UTC, mostrado no fuso de São Paulo)
 - [ ] **5. Reservas:** restrição de exclusão no Postgres contra horários sobrepostos, `Idempotency-Key` contra clique duplo, cancelamento com antecedência mínima e teste com pedidos simultâneos
 - [ ] **6. Lembretes:** fila (BullMQ + Redis) com o aviso agendado para 24 h antes; cancelar a reserva tira o aviso da fila
@@ -96,6 +96,44 @@ decorador fecha a rota em vez de abri-la). `@Papeis('dono')` limita a rota a um 
 para os outros). Qualquer pessoa pode se cadastrar como dono (é assim que um negócio novo entra),
 então **o papel não basta**: a partir da fase 3, toda ação de dono confere também que o negócio é
 dele.
+
+## Catálogo
+
+Rotas do dono (token de dono; `403` para cliente). Tudo que vem depois de `/negocios/:id` confere
+que o negócio é de quem pede: o de outro dono responde `404`, igual a um id que não existe, para
+não confirmar que ele existe. Profissional, serviço e bloqueio também precisam ser **daquele**
+negócio (trocar só o id na URL não alcança os dados de outro dono; há teste para cada caso).
+
+| Rota | O que faz |
+|---|---|
+| `POST /negocios` | `{nome, slug?, fuso?}`; sem `slug`, ele sai do nome ("Barbearia São João" → `barbearia-sao-joao`, com sufixo se já existir); fuso padrão `America/Sao_Paulo` |
+| `GET /negocios` | os negócios de quem está logado |
+| `PATCH /negocios/:id` | muda nome, endereço ou fuso |
+| `GET/POST /negocios/:id/profissionais` | lista (com serviços e horários) e cria |
+| `PATCH /negocios/:id/profissionais/:pid` | muda o nome ou desativa (`{"ativo": false}`); não há apagar, por causa das reservas |
+| `PUT /negocios/:id/profissionais/:pid/servicos` | `{servicoIds: [...]}`: troca a lista do que ele faz |
+| `PUT /negocios/:id/profissionais/:pid/horarios` | `{horarios: [{diaDaSemana, inicio: "09:00", fim: "12:00"}]}`: troca a semana inteira |
+| `GET/POST /negocios/:id/servicos`, `PATCH .../:sid` | duração de 5 a 480 min (múltipla de 5), preço em centavos |
+| `GET/POST /negocios/:id/bloqueios`, `DELETE .../:bid` | `{profissionalId?, inicio, fim, motivo?}`; sem profissional, vale para o negócio todo; `GET` aceita `?de=&ate=` (no máximo 1 ano por consulta e 500 bloqueios; sem nada, o próximo ano; só com um dos dois, o ano a partir de `de` ou até `ate`) |
+
+E a vitrine pública, sem login: `GET /negocios/:slug` devolve o nome, o fuso, os profissionais
+ativos e os serviços ativos que algum profissional ativo faz (com quem faz cada um). Nada do dono
+aparece.
+
+**Horas:** o horário semanal é hora local do negócio (o fuso dele, gravado com o nome canônico
+IANA), guardado como minutos desde a meia-noite; `24:00` fecha o dia. Trocar o fuso do negócio
+muda o sentido de todos os horários ("09:00" passa a ser 09:00 do fuso novo); a partir da fase 5,
+com reservas marcadas, essa troca vai precisar de cuidado. Bloqueios são instantes absolutos: a API exige data e hora com
+fuso (`2026-12-25T00:00:00-03:00`) e guarda em UTC. Fica para a fase 4 juntar os dois no cálculo
+dos horários livres.
+
+**No banco:** além das validações da API, o Postgres tem as próprias regras (`CHECK` para
+duração, preço, formato do endereço, dia e intervalo) e uma restrição de exclusão
+(`EXCLUDE USING gist`, extensão `btree_gist`) que não deixa dois intervalos do mesmo profissional
+se sobreporem no mesmo dia. As ligações também não misturam negócios no banco: a tabela de "quem
+faz o quê" tem chaves estrangeiras compostas com o `negocio_id`, e um gatilho confere que o
+profissional de um bloqueio é do mesmo negócio. Duas trocas de horário ao mesmo tempo entram em fila
+(`SELECT ... FOR UPDATE` no profissional); o teste dispara 6 juntas.
 
 ## Saúde
 
