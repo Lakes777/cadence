@@ -12,6 +12,26 @@ const esquema = z.object({
   NIVEL_DO_LOG: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
+  // Assina os tokens de acesso (HS256): quem tem o segredo fabrica um token de qualquer pessoa
+  JWT_SEGREDO: z
+    .string({ error: 'JWT_SEGREDO é obrigatório (ex.: openssl rand -hex 32)' })
+    .min(32, 'JWT_SEGREDO precisa de pelo menos 32 caracteres'),
+  // Tentativas de cadastro, login e renovação por IP a cada minuto (contra força bruta)
+  PEDIDOS_DE_CONTA_POR_MINUTO: z.coerce.number().int().min(1).default(10),
+  // De quem aceitar o X-Forwarded-For (o IP real vale para o limite de pedidos e os logs).
+  // Palavras do Express (loopback, uniquelocal...), IPs ou sub-redes separados por vírgula.
+  // "true" fica de fora: qualquer um forjaria o próprio IP e escaparia do limite.
+  CONFIANCA_NO_PROXY: z
+    .string()
+    .regex(
+      /^[\w.:/]+(\s*,\s*[\w.:/]+)*$/,
+      'CONFIANCA_NO_PROXY: lista de IPs, sub-redes ou loopback/linklocal/uniquelocal',
+    )
+    .refine(
+      (valor) => !/^(true|false|\d+)$/.test(valor),
+      'CONFIANCA_NO_PROXY não aceita true/false nem número de saltos; informe os endereços',
+    )
+    .default('loopback'),
 });
 
 export type Config = Readonly<z.infer<typeof esquema>>;

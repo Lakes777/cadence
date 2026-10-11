@@ -1,5 +1,5 @@
-// Esquema do banco. As tabelas entram a partir da fase 2; o que o Prisma não sabe
-// descrever (como a restrição contra reserva dupla) vai em SQL dentro da migração.
+// Esquema do banco. O que o Prisma não sabe descrever (como a restrição contra reserva dupla)
+// vai em SQL dentro da migração.
 
 generator client {
   provider            = "prisma-client"
@@ -10,4 +10,46 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum Papel {
+  dono
+  cliente
+}
+
+model Usuario {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  nome      String
+  /// Sempre em minúsculas e sem espaços nas pontas (normalizado antes de gravar)
+  email     String   @unique
+  /// scrypt$N$r$p$sal$hash (ver src/auth/senha.ts)
+  senhaHash String   @map("senha_hash")
+  papel     Papel
+  criadoEm  DateTime @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  tokensDeRenovacao TokenDeRenovacao[]
+
+  @@map("usuarios")
+}
+
+/// Cada login abre uma família; cada renovação gasta o token e cria o próximo da mesma família.
+/// Token gasto usado de novo = roubo provável: a família inteira é revogada.
+model TokenDeRenovacao {
+  id         String    @id @default(uuid(7)) @db.Uuid
+  usuarioId  String    @map("usuario_id") @db.Uuid
+  familia    String    @db.Uuid
+  /// Quando o login que abriu a família aconteceu: depois de 90 dias, entra de novo com a senha
+  familiaCriadaEm DateTime @map("familia_criada_em") @db.Timestamptz(3)
+  /// SHA-256 do token; o token em si só existe no cookie do navegador
+  hash       String    @unique
+  expiraEm   DateTime  @map("expira_em") @db.Timestamptz(3)
+  usadoEm    DateTime? @map("usado_em") @db.Timestamptz(3)
+  revogadoEm DateTime? @map("revogado_em") @db.Timestamptz(3)
+  criadoEm   DateTime  @default(now()) @map("criado_em") @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([familia])
+  @@index([usuarioId])
+  @@map("tokens_de_renovacao")
 }

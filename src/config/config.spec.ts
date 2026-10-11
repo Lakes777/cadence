@@ -1,48 +1,77 @@
+import { readFileSync } from 'node:fs';
+import { parseEnv } from 'node:util';
 import { lerConfig } from './config.js';
 
 const URL_VALIDA = 'postgresql://cadence:senha@localhost:5432/cadence';
+const SEGREDO = 'x'.repeat(32);
+const BASE = { DATABASE_URL: URL_VALIDA, JWT_SEGREDO: SEGREDO };
 
 describe('lerConfig', () => {
-  it('usa os padrões quando só o banco é informado', () => {
-    const config = lerConfig({ DATABASE_URL: URL_VALIDA });
+  it('usa os padrões quando só o banco e o segredo são informados', () => {
+    const config = lerConfig(BASE);
     expect(config).toEqual({
       NODE_ENV: 'production',
       PORTA: 3000,
       DATABASE_URL: URL_VALIDA,
       NIVEL_DO_LOG: 'info',
+      JWT_SEGREDO: SEGREDO,
+      PEDIDOS_DE_CONTA_POR_MINUTO: 10,
+      CONFIANCA_NO_PROXY: 'loopback',
     });
   });
 
   it('converte a porta de texto para número', () => {
-    expect(lerConfig({ DATABASE_URL: URL_VALIDA, PORTA: '8093' }).PORTA).toBe(
-      8093,
-    );
+    expect(lerConfig({ ...BASE, PORTA: '8093' }).PORTA).toBe(8093);
   });
 
   it('aceita postgres:// além de postgresql://', () => {
     const url = 'postgres://cadence@banco/cadence';
-    expect(lerConfig({ DATABASE_URL: url }).DATABASE_URL).toBe(url);
+    expect(lerConfig({ ...BASE, DATABASE_URL: url }).DATABASE_URL).toBe(url);
   });
 
   it('devolve uma configuração congelada', () => {
-    expect(Object.isFrozen(lerConfig({ DATABASE_URL: URL_VALIDA }))).toBe(true);
+    expect(Object.isFrozen(lerConfig(BASE))).toBe(true);
   });
 
   it('recusa a falta do banco com uma mensagem clara', () => {
-    expect(() => lerConfig({})).toThrow(
+    expect(() => lerConfig({ JWT_SEGREDO: SEGREDO })).toThrow(
       /DATABASE_URL: DATABASE_URL é obrigatória/,
     );
   });
 
+  it('recusa o segredo de exemplo do .env.exemplo (está público no GitHub)', () => {
+    const exemplo = parseEnv(readFileSync('.env.exemplo', 'utf8'));
+    expect(exemplo.JWT_SEGREDO).toBeDefined();
+    expect(() => lerConfig(exemplo)).toThrow(/- JWT_SEGREDO:/);
+  });
+
+  it('aceita uma lista de redes de confiança para o proxy', () => {
+    const valor = 'loopback, 172.30.0.0/24';
+    expect(
+      lerConfig({ ...BASE, CONFIANCA_NO_PROXY: valor }).CONFIANCA_NO_PROXY,
+    ).toBe(valor);
+  });
+
+  it('recusa a falta do segredo dos tokens', () => {
+    expect(() => lerConfig({ DATABASE_URL: URL_VALIDA })).toThrow(
+      /JWT_SEGREDO: JWT_SEGREDO é obrigatório/,
+    );
+  });
+
   it.each([
-    ['endereço de outro banco', { DATABASE_URL: 'mysql://localhost/x' }],
-    ['porta fora da faixa', { DATABASE_URL: URL_VALIDA, PORTA: '70000' }],
-    ['porta que não é número', { DATABASE_URL: URL_VALIDA, PORTA: 'oito' }],
-    ['ambiente desconhecido', { DATABASE_URL: URL_VALIDA, NODE_ENV: 'prod' }],
     [
-      'nível de log desconhecido',
-      { DATABASE_URL: URL_VALIDA, NIVEL_DO_LOG: 'tudo' },
+      'endereço de outro banco',
+      { ...BASE, DATABASE_URL: 'mysql://localhost/x' },
     ],
+    ['porta fora da faixa', { ...BASE, PORTA: '70000' }],
+    ['porta que não é número', { ...BASE, PORTA: 'oito' }],
+    ['ambiente desconhecido', { ...BASE, NODE_ENV: 'prod' }],
+    ['nível de log desconhecido', { ...BASE, NIVEL_DO_LOG: 'tudo' }],
+    ['segredo curto', { ...BASE, JWT_SEGREDO: 'x'.repeat(31) }],
+    ['limite de pedidos zerado', { ...BASE, PEDIDOS_DE_CONTA_POR_MINUTO: '0' }],
+    ['confiar em qualquer proxy', { ...BASE, CONFIANCA_NO_PROXY: 'true' }],
+    ['número de saltos do proxy', { ...BASE, CONFIANCA_NO_PROXY: '1' }],
+    ['proxy com caractere estranho', { ...BASE, CONFIANCA_NO_PROXY: 'a;b' }],
   ])('recusa %s', (_caso, env) => {
     expect(() => lerConfig(env)).toThrow(/^Configuração inválida/);
   });
@@ -50,7 +79,7 @@ describe('lerConfig', () => {
   it('lista todos os problemas de uma vez, sem mostrar valores', () => {
     const segredo = 'mysql://usuario:senha-secreta@localhost/x';
     try {
-      lerConfig({ DATABASE_URL: segredo, PORTA: '0' });
+      lerConfig({ ...BASE, DATABASE_URL: segredo, PORTA: '0' });
       expect.unreachable();
     } catch (erro) {
       const mensagem = (erro as Error).message;

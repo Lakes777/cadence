@@ -4,6 +4,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { Publica } from '../auth/decoradores.js';
 import { PrismaService } from '../banco/prisma.service.js';
 
 export interface Saude {
@@ -16,6 +17,7 @@ export const LIMITE_DA_CONSULTA_MS = 5_000;
 
 /** Usado pelo Vigil e pelo healthcheck do Docker: 200 se o banco responde, 503 se não. */
 @Controller('saude')
+@Publica()
 export class SaudeController {
   private readonly logger = new Logger(SaudeController.name);
 
