@@ -18,7 +18,7 @@ milissegundo. **Em construção:** as fases abaixo mostram o que já está pront
 - [x] **3. Catálogo:** negócio com endereço público, profissionais, serviços (duração e preço), quem faz o quê, horário semanal (o banco recusa intervalos sobrepostos) e bloqueios (folga, feriado); cada dono só enxerga o que é dele
 - [x] **4. Disponibilidade:** horários livres do dia por serviço, no fuso do negócio (conversão feita à mão com `Intl`, testada nos dias de horário de verão), com bloqueios, antecedência mínima e janela de 60 dias
 - [x] **5. Reservas:** restrição de exclusão no Postgres contra horários sobrepostos, `Idempotency-Key` contra clique duplo, cancelamento com antecedência mínima, agenda do dono e teste com 50 pedidos simultâneos no mesmo horário
-- [ ] **6. Lembretes:** fila (BullMQ + Redis) com o aviso agendado para 24 h antes; cancelar a reserva tira o aviso da fila
+- [x] **6. Lembretes:** fila (BullMQ + Redis) com o lembrete agendado para 24 h antes; cancelar tira o lembrete da fila; sem Redis, as reservas seguem e uma conferência periódica envia o que a fila perdeu
 - [ ] **7. Tempo real:** WebSocket: quem está olhando o dia vê o horário sumir quando outra pessoa reserva
 - [ ] **8. Interface:** React + Vite (renovação do token em fila única entre as abas), com identidade visual própria ("Relógio de ponto", ver [docs/identidade.md](docs/identidade.md)); tela do cliente, painel do dono e um negócio de demonstração
 - [ ] **9. Publicação:** Docker Compose numa VM da Oracle, com HTTPS e vigiado pelo [Vigil](https://github.com/Lakes777/vigil)
@@ -31,7 +31,7 @@ Precisa de Node 24 e Docker.
 npm ci
 npm run gerar               # cliente do Prisma a partir de prisma/schema.prisma
 cp .env.exemplo .env
-docker compose up -d        # Postgres de desenvolvimento na porta 5434
+docker compose up -d        # Postgres (porta 5434) e Redis (porta 6380) de desenvolvimento
 npm run migrar
 npm run start:dev           # http://localhost:3000/saude
 ```
@@ -44,6 +44,8 @@ Lida do ambiente e validada na partida: se algo estiver errado, a API não sobe 
 | Variável | Padrão | Para quê |
 |---|---|---|
 | `DATABASE_URL` | (obrigatória) | `postgresql://...` |
+| `REDIS_URL` | (obrigatória) | `redis://...` ou `rediss://...` (fila de lembretes) |
+| `PREFIXO_DA_FILA` | `cadence` | prefixo das chaves no Redis (para dividir um Redis com outras aplicações) |
 | `PORTA` | `3000` | porta HTTP |
 | `NODE_ENV` | `production` | `development` mostra os logs legíveis (o `.env.exemplo` já vem assim); os outros, em JSON |
 | `NIVEL_DO_LOG` | `info` | `fatal` a `trace`, ou `silent` |
@@ -223,10 +225,56 @@ devolve a reserva como está. O preço fica gravado na reserva no momento em que
 **Privacidade:** a disponibilidade pública só diz que o horário não está livre, nunca quem
 reservou; só o dono vê os clientes, e só os do próprio negócio.
 
+## Lembretes
+
+Cada reserva feita com mais de 24 h de antecedência ganha um **lembrete para 24 h antes**, numa
+fila do BullMQ no Redis (tarefa atrasada até a hora certa). Na hora, o trabalhador grava um aviso
+para o cliente, que aparece em `GET /avisos`. A partir da fase 7, o mesmo aviso vai chegar na
+hora pelo WebSocket. Quem reserva em cima da hora (menos de 24 h antes) acabou de ver a reserva e
+não recebe lembrete.
+
+| Rota | O que faz |
+|---|---|
+| `GET /avisos` | os 50 avisos mais recentes de quem está logado; `reservaCancelada` avisa quando a reserva foi cancelada depois do lembrete |
+| `POST /avisos/:id/lido` | marca como lido → `200`; aviso de outra pessoa é `404` |
+
+**O que pode dar errado, e o que acontece:**
+
+- **Clique em cancelar:** o id da tarefa é o id da reserva, então cancelar sabe qual tirar da
+  fila. Se a tarefa já estiver saindo, o envio confere o status e desiste.
+- **Cancelamento e envio no mesmo instante:** o envio trava a reserva (`SELECT ... FOR SHARE`)
+  antes de conferir o status. Um cancelamento em andamento faz o envio esperar e desistir, nunca
+  um lembrete de reserva já cancelada. Há um teste que segura o cancelamento aberto e confere que
+  o envio espera; sem a trava, ele falha.
+- **A fila entrega pelo menos uma vez** (uma tarefa pode rodar de novo depois de uma falha): o
+  banco tem chave única `(reserva, tipo)` no aviso, e repetir não gera um segundo. O teste manda 10
+  envios juntos e sai um aviso.
+- **Redis fora do ar:** a reserva **não depende dele**. O comando falha na hora (sem fila de espera
+  local no cliente do Redis), a reserva sai normalmente e o momento do lembrete fica gravado na
+  própria reserva (`lembrete_em`). Uma **conferência** roda na partida e a cada 5 min, procura
+  reservas cujo lembrete venceu há mais de 2 min sem aviso e envia direto pelo banco, enquanto o
+  atendimento não começou. Há teste com o Redis desligado, e o log registra só a queda e a volta,
+  não cada tentativa de reconectar (uma linha por conexão: a da fila e a do trabalhador). Há
+  teste também com o Redis congelado e a conexão ainda aberta (`CLIENT PAUSE`): a reserva
+  desiste do Redis em 2 s e sai.
+- **Banco fora do ar na hora do envio:** a tarefa tenta 5 vezes no total (a primeira e mais 4,
+  após 10 s, 20 s, 40 s e 80 s); se todas falharem, a conferência pega depois. Na conferência, um
+  envio que falha não segura os outros do lote.
+
+No `compose.yaml`, o Redis grava em disco (`appendonly`) e nunca descarta chaves por falta de
+memória (`noeviction`, exigido pelo BullMQ). O trabalhador roda no mesmo processo da API, porque é
+pouco trabalho; para separar, bastaria subir o provedor dele em outro processo.
+
+**Escolha consciente:** por enquanto, o lembrete fica **dentro do sistema** (`/avisos`), sem
+e-mail. Mandar e-mail precisaria de um serviço de envio e de um domínio verificado. Com o aviso
+gravado no banco, esse canal vira mais um passo depois da gravação.
+
 ## Saúde
 
-`GET /saude` responde `200 {"status":"ok","banco":"ok"}` quando o Postgres responde e `503` quando
-não: em até 5 s, mesmo com o banco congelado (a consulta tem limite de tempo). A resposta não expõe
+`GET /saude` responde `200 {"status":"ok","banco":"ok","fila":"ok"}` quando o Postgres responde e
+`503` quando não: em até 5 s, mesmo com o banco congelado (a consulta tem limite de tempo). O Redis
+aparece em `fila` (`ok` ou `fora do ar`), mas não muda o status: sem ele a API continua
+funcionando, e reiniciar a API não traria o Redis de volta. A resposta não expõe
 o erro do banco; o motivo vai para o log do servidor. O `/saude` não entra no log de pedidos,
 porque o Vigil chama a cada minuto.
 
@@ -237,7 +285,7 @@ Todo pedido ganha um `X-Request-Id` na resposta e nos logs; se quem chamou já m
 
 ```bash
 npm test            # unidade (sem banco)
-npm run test:e2e    # ponta a ponta: o Testcontainers sobe um Postgres 18 e aplica as migrações
+npm run test:e2e    # ponta a ponta: o Testcontainers sobe um Postgres 18 e um Redis 8 e aplica as migrações
 ```
 
 O CI roda formatação (Prettier), lint (oxlint com tipos), `tsc`, build e as duas suítes.

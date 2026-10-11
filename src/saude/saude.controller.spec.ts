@@ -1,10 +1,17 @@
 import { Logger, ServiceUnavailableException } from '@nestjs/common';
 import type { PrismaService } from '../banco/prisma.service.js';
+import type { FilaDeLembretes } from '../lembretes/fila.js';
 import { LIMITE_DA_CONSULTA_MS, SaudeController } from './saude.controller.js';
 
-function controladorCom(consulta: () => Promise<unknown>): SaudeController {
+function controladorCom(
+  consulta: () => Promise<unknown>,
+  redisResponde = true,
+): SaudeController {
   const prisma = { $queryRaw: consulta } as unknown as PrismaService;
-  return new SaudeController(prisma);
+  const fila = {
+    responde: () => Promise.resolve(redisResponde),
+  } as unknown as FilaDeLembretes;
+  return new SaudeController(prisma, fila);
 }
 
 describe('SaudeController', () => {
@@ -26,8 +33,18 @@ describe('SaudeController', () => {
     await expect(controlador.verificar()).resolves.toEqual({
       status: 'ok',
       banco: 'ok',
+      fila: 'ok',
     });
     expect(aviso).not.toHaveBeenCalled();
+  });
+
+  it('continua 200 com o Redis fora do ar, mas mostra a fila fora', async () => {
+    const controlador = controladorCom(() => Promise.resolve([]), false);
+    await expect(controlador.verificar()).resolves.toEqual({
+      status: 'ok',
+      banco: 'ok',
+      fila: 'fora do ar',
+    });
   });
 
   it('responde 503 sem vazar o erro do banco, mas registra o motivo no log', async () => {

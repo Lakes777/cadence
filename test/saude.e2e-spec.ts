@@ -18,7 +18,7 @@ describe('/saude', () => {
     const resposta = await request(app.getHttpServer())
       .get('/saude')
       .expect(200);
-    expect(resposta.body).toEqual({ status: 'ok', banco: 'ok' });
+    expect(resposta.body).toEqual({ status: 'ok', banco: 'ok', fila: 'ok' });
   });
 
   it('devolve o X-Request-Id recebido quando ele é válido', async () => {

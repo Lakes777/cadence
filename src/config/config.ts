@@ -9,6 +9,18 @@ const esquema = z.object({
       (url) => /^postgres(ql)?:\/\//.test(url),
       'DATABASE_URL precisa começar com postgres:// ou postgresql://',
     ),
+  // Redis da fila de lembretes (BullMQ)
+  REDIS_URL: z
+    .string({ error: 'REDIS_URL é obrigatória (ex.: redis://localhost:6380)' })
+    .refine(
+      (url) => /^rediss?:\/\//.test(url),
+      'REDIS_URL precisa começar com redis:// ou rediss://',
+    ),
+  // Separa as chaves desta instalação no Redis (os testes usam um prefixo por aplicação)
+  PREFIXO_DA_FILA: z
+    .string()
+    .regex(/^[\w-]{1,50}$/, 'PREFIXO_DA_FILA: letras, números, _ ou -')
+    .default('cadence'),
   NIVEL_DO_LOG: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),

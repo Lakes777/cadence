@@ -4,15 +4,22 @@ import { lerConfig } from './config.js';
 
 const URL_VALIDA = 'postgresql://cadence:senha@localhost:5432/cadence';
 const SEGREDO = 'x'.repeat(32);
-const BASE = { DATABASE_URL: URL_VALIDA, JWT_SEGREDO: SEGREDO };
+const REDIS = 'redis://localhost:6380';
+const BASE = {
+  DATABASE_URL: URL_VALIDA,
+  JWT_SEGREDO: SEGREDO,
+  REDIS_URL: REDIS,
+};
 
 describe('lerConfig', () => {
-  it('usa os padrões quando só o banco e o segredo são informados', () => {
+  it('usa os padrões quando só o banco, o Redis e o segredo são informados', () => {
     const config = lerConfig(BASE);
     expect(config).toEqual({
       NODE_ENV: 'production',
       PORTA: 3000,
       DATABASE_URL: URL_VALIDA,
+      REDIS_URL: REDIS,
+      PREFIXO_DA_FILA: 'cadence',
       NIVEL_DO_LOG: 'info',
       JWT_SEGREDO: SEGREDO,
       PEDIDOS_DE_CONTA_POR_MINUTO: 10,
@@ -35,7 +42,7 @@ describe('lerConfig', () => {
   });
 
   it('recusa a falta do banco com uma mensagem clara', () => {
-    expect(() => lerConfig({ JWT_SEGREDO: SEGREDO })).toThrow(
+    expect(() => lerConfig({ JWT_SEGREDO: SEGREDO, REDIS_URL: REDIS })).toThrow(
       /DATABASE_URL: DATABASE_URL é obrigatória/,
     );
   });
@@ -54,9 +61,20 @@ describe('lerConfig', () => {
   });
 
   it('recusa a falta do segredo dos tokens', () => {
-    expect(() => lerConfig({ DATABASE_URL: URL_VALIDA })).toThrow(
-      /JWT_SEGREDO: JWT_SEGREDO é obrigatório/,
-    );
+    expect(() =>
+      lerConfig({ DATABASE_URL: URL_VALIDA, REDIS_URL: REDIS }),
+    ).toThrow(/JWT_SEGREDO: JWT_SEGREDO é obrigatório/);
+  });
+
+  it('recusa a falta do Redis com uma mensagem clara', () => {
+    expect(() =>
+      lerConfig({ DATABASE_URL: URL_VALIDA, JWT_SEGREDO: SEGREDO }),
+    ).toThrow(/REDIS_URL: REDIS_URL é obrigatória/);
+  });
+
+  it('aceita rediss:// (Redis com TLS)', () => {
+    const url = 'rediss://:senha@redis.exemplo:6380/2';
+    expect(lerConfig({ ...BASE, REDIS_URL: url }).REDIS_URL).toBe(url);
   });
 
   it.each([
@@ -64,6 +82,11 @@ describe('lerConfig', () => {
       'endereço de outro banco',
       { ...BASE, DATABASE_URL: 'mysql://localhost/x' },
     ],
+    [
+      'endereço do Redis sem redis://',
+      { ...BASE, REDIS_URL: 'localhost:6380' },
+    ],
+    ['prefixo da fila com dois-pontos', { ...BASE, PREFIXO_DA_FILA: 'a:b' }],
     ['porta fora da faixa', { ...BASE, PORTA: '70000' }],
     ['porta que não é número', { ...BASE, PORTA: 'oito' }],
     ['ambiente desconhecido', { ...BASE, NODE_ENV: 'prod' }],

@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import type { App } from 'supertest/types.js';
@@ -17,6 +18,9 @@ export async function criarApp(
 ): Promise<INestApplication<App>> {
   Object.assign(process.env, {
     DATABASE_URL: inject('urlDoBanco'),
+    REDIS_URL: inject('urlDoRedis'),
+    // Uma fila por aplicação: o trabalhador de uma (com o relógio dela) não pega as tarefas de outra
+    PREFIXO_DA_FILA: `teste-${randomUUID()}`,
     NODE_ENV: 'test',
     NIVEL_DO_LOG: 'silent',
     JWT_SEGREDO: 'segredo-dos-testes-de-ponta-a-ponta-0123456789',

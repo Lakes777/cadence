@@ -30,6 +30,7 @@ model Usuario {
   tokensDeRenovacao TokenDeRenovacao[]
   negocios          Negocio[]
   reservas          Reserva[]
+  avisos            Aviso[]
 
   @@map("usuarios")
 }
@@ -186,16 +187,43 @@ model Reserva {
   /// O cabeçalho Idempotency-Key do pedido que criou a reserva, e um hash do corpo
   chaveIdempotencia String          @map("chave_idempotencia")
   hashDoPedido      String          @map("hash_do_pedido")
+  /// Quando o lembrete deve sair (24 h antes); vazio se a reserva foi feita em cima da hora
+  lembreteEm        DateTime?       @map("lembrete_em") @db.Timestamptz(3)
   criadoEm          DateTime        @default(now()) @map("criado_em") @db.Timestamptz(3)
 
   negocio      Negocio      @relation(fields: [negocioId], references: [id], onDelete: Cascade)
   profissional Profissional @relation(fields: [profissionalId, negocioId], references: [id, negocioId], onDelete: Restrict)
   servico      Servico      @relation(fields: [servicoId, negocioId], references: [id, negocioId], onDelete: Restrict)
   cliente      Usuario      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  avisos       Aviso[]
 
   @@unique([clienteId, chaveIdempotencia])
   @@index([negocioId, inicio])
   @@index([profissionalId, inicio])
   @@index([clienteId, inicio])
+  @@index([lembreteEm])
   @@map("reservas")
+}
+
+enum TipoDeAviso {
+  lembrete
+}
+
+/// O que o sistema avisou a uma pessoa (por enquanto, o lembrete de 24 h antes)
+model Aviso {
+  id        String      @id @default(uuid(7)) @db.Uuid
+  usuarioId String      @map("usuario_id") @db.Uuid
+  reservaId String      @map("reserva_id") @db.Uuid
+  tipo      TipoDeAviso
+  texto     String
+  criadoEm  DateTime    @default(now()) @map("criado_em") @db.Timestamptz(3)
+  lidoEm    DateTime?   @map("lido_em") @db.Timestamptz(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  reserva Reserva @relation(fields: [reservaId], references: [id], onDelete: Cascade)
+
+  /// A fila entrega cada tarefa pelo menos uma vez: a mesma reserva nunca gera dois lembretes
+  @@unique([reservaId, tipo])
+  @@index([usuarioId, criadoEm])
+  @@map("avisos")
 }

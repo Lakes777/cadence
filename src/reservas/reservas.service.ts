@@ -14,6 +14,8 @@ import { RELOGIO, type Relogio } from '../comum/relogio.js';
 import { DisponibilidadeService } from '../disponibilidade/disponibilidade.service.js';
 import { dataLocal } from '../disponibilidade/fuso.js';
 import { Prisma } from '../generated/prisma/client.js';
+import { FilaDeLembretes } from '../lembretes/fila.js';
+import { momentoDoLembrete } from '../lembretes/lembrete.js';
 import {
   FORMATO_DA_CHAVE,
   type Minhas,
@@ -50,6 +52,7 @@ export class ReservasService {
     private readonly prisma: PrismaService,
     private readonly disponibilidade: DisponibilidadeService,
     private readonly negocios: NegociosService,
+    private readonly fila: FilaDeLembretes,
     @Inject(RELOGIO) private readonly relogio: Relogio,
   ) {}
 
@@ -89,6 +92,7 @@ export class ReservasService {
     if (!horario)
       return this.repetidaOuIndisponivel(clienteId, chave, hashDoPedido);
 
+    const lembreteEm = momentoDoLembrete(horario.inicio, this.relogio.agora());
     // Sem profissional escolhido, tenta cada um que estava livre: se dois clientes disputam o
     // mesmo horário e há dois profissionais, os dois conseguem
     for (const profissionalId of horario.profissionalIds) {
@@ -104,9 +108,12 @@ export class ReservasService {
             precoCentavos: servico.precoCentavos,
             chaveIdempotencia: chave,
             hashDoPedido,
+            lembreteEm,
           },
           include: INCLUIR,
         });
+        // Depois de gravar: a reserva vale mesmo se o Redis estiver fora do ar
+        if (lembreteEm) await this.fila.agendar(reserva.id, lembreteEm);
         return { reserva: reservaResposta(reserva), nova: true };
       } catch (erro) {
         if (!violou(erro, '23P01') && !violou(erro, '23505')) throw erro;
@@ -217,10 +224,11 @@ export class ReservasService {
       );
     }
     // Só muda se ainda estiver confirmada (dois cancelamentos juntos não brigam)
-    await this.prisma.reserva.updateMany({
+    const { count } = await this.prisma.reserva.updateMany({
       where: { id: reserva.id, status: 'confirmada' },
       data: { status: 'cancelada', canceladaEm: agora },
     });
+    if (count === 1) await this.fila.desagendar(reserva.id);
     return reservaResposta(
       await this.prisma.reserva.findUniqueOrThrow({
         where: { id: reserva.id },

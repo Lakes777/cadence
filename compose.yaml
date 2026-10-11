@@ -1,4 +1,4 @@
-# Postgres para desenvolvimento (os testes sobem o próprio, com o Testcontainers)
+# Postgres e Redis para desenvolvimento (os testes sobem os próprios, com o Testcontainers)
 services:
   banco:
     image: postgres:18-alpine
@@ -11,5 +11,16 @@ services:
     volumes:
       - banco:/var/lib/postgresql
 
+  fila:
+    image: redis:8-alpine
+    # appendonly: os lembretes agendados sobrevivem a um reinício do Redis.
+    # noeviction: o BullMQ exige que o Redis nunca apague chaves para liberar memória.
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    ports:
+      - '127.0.0.1:6380:6379'
+    volumes:
+      - fila:/data
+
 volumes:
   banco:
+  fila:
