@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { Papeis, Publica, UsuarioAtual } from '../auth/decoradores.js';
 import type { UsuarioDoToken } from '../auth/usuario-do-token.js';
 import { ID } from '../comum/id.pipe.js';
@@ -43,6 +52,8 @@ export class NegociosController {
 
 /** Separado porque não tem o `@Papeis('dono')` da classe acima: qualquer um vê a vitrine. */
 @Controller('negocios')
+@UseGuards(ThrottlerGuard)
+@SkipThrottle({ conta: true })
 export class VitrineController {
   constructor(private readonly negocios: NegociosService) {}
 

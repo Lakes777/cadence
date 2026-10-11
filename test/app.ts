@@ -22,6 +22,7 @@ export async function criarApp(
     JWT_SEGREDO: 'segredo-dos-testes-de-ponta-a-ponta-0123456789',
     // Alto para os testes não esbarrarem no limite; o teste do limite sobe o próprio app
     PEDIDOS_DE_CONTA_POR_MINUTO: '1000',
+    PEDIDOS_PUBLICOS_POR_MINUTO: '10000',
     ...env,
   });
   const modulo = await ajustar(

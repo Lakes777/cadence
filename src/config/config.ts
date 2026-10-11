@@ -18,6 +18,8 @@ const esquema = z.object({
     .min(32, 'JWT_SEGREDO precisa de pelo menos 32 caracteres'),
   // Tentativas de cadastro, login e renovação por IP a cada minuto (contra força bruta)
   PEDIDOS_DE_CONTA_POR_MINUTO: z.coerce.number().int().min(1).default(10),
+  // Vitrine, disponibilidade e reservar, por IP a cada minuto em cada rota
+  PEDIDOS_PUBLICOS_POR_MINUTO: z.coerce.number().int().min(1).default(120),
   // De quem aceitar o X-Forwarded-For (o IP real vale para o limite de pedidos e os logs).
   // Palavras do Express (loopback, uniquelocal...), IPs ou sub-redes separados por vírgula.
   // "true" fica de fora: qualquer um forjaria o próprio IP e escaparia do limite.

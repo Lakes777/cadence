@@ -33,6 +33,7 @@ type RespostaDeSessao = Omit<Sessao, 'tokenDeRenovacao' | 'renovacaoExpiraEm'>;
 
 @Controller('auth')
 @UseGuards(ExigeJsonGuard, ThrottlerGuard)
+@SkipThrottle({ publico: true })
 export class AuthController {
   private readonly cookie: CookieOptions;
 
@@ -88,7 +89,7 @@ export class AuthController {
 
   @Post('sair')
   @Publica()
-  @SkipThrottle()
+  @SkipThrottle({ conta: true, publico: true })
   @HttpCode(204)
   async sair(
     @Req() req: Request,
@@ -99,7 +100,7 @@ export class AuthController {
   }
 
   @Get('eu')
-  @SkipThrottle()
+  @SkipThrottle({ conta: true, publico: true })
   eu(@UsuarioAtual() usuario: UsuarioDoToken): Promise<UsuarioPublico> {
     return this.auth.buscar(usuario.id);
   }

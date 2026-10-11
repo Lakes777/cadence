@@ -16,6 +16,7 @@ describe('lerConfig', () => {
       NIVEL_DO_LOG: 'info',
       JWT_SEGREDO: SEGREDO,
       PEDIDOS_DE_CONTA_POR_MINUTO: 10,
+      PEDIDOS_PUBLICOS_POR_MINUTO: 120,
       CONFIANCA_NO_PROXY: 'loopback',
     });
   });

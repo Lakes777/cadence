@@ -1,4 +1,5 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { Publica } from '../auth/decoradores.js';
 import { ValidacaoZod } from '../comum/validacao-zod.pipe.js';
 import { esquemaConsulta, type Consulta } from './disponibilidade.dto.js';
@@ -8,6 +9,8 @@ import {
 } from './disponibilidade.service.js';
 
 @Controller('negocios/:slug/disponibilidade')
+@UseGuards(ThrottlerGuard)
+@SkipThrottle({ conta: true })
 export class DisponibilidadeController {
   constructor(private readonly disponibilidade: DisponibilidadeService) {}
 

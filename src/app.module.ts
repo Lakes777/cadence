@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { AuthModule } from './auth/auth.module.js';
 import { BancoModule } from './banco/banco.module.js';
@@ -42,6 +43,24 @@ const ID_DO_PEDIDO = /^[\w-]{1,64}$/;
               : undefined,
         },
       }),
+    }),
+    // Limites por IP, por rota, a cada minuto. "conta": cadastro, login e renovação (contra
+    // força bruta). "publico": vitrine, disponibilidade e reservar (contra raspagem e abuso).
+    // Cada controlador diz qual dos dois vale para ele (o outro fica com @SkipThrottle).
+    ThrottlerModule.forRootAsync({
+      inject: [CONFIG],
+      useFactory: (config: Config) => [
+        {
+          name: 'conta',
+          ttl: 60_000,
+          limit: config.PEDIDOS_DE_CONTA_POR_MINUTO,
+        },
+        {
+          name: 'publico',
+          ttl: 60_000,
+          limit: config.PEDIDOS_PUBLICOS_POR_MINUTO,
+        },
+      ],
     }),
     BancoModule,
     AuthModule,
