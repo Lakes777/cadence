@@ -81,6 +81,8 @@ export interface Disponibilidade {
   fuso: string;
   servico: { id: string; nome: string; duracaoMin: number };
   horarios: HorarioLivre[];
+  /** Horários que existiriam sem as reservas: só a hora, nunca de quem */
+  ocupados: { inicio: string; fim: string; hora: string }[];
 }
 
 export interface Reserva {

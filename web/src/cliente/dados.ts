@@ -6,16 +6,10 @@ import { hojeNoFuso, somarDias } from '../comum/formatos';
 export const JANELA_DIAS = 60;
 
 /** Horário que existiria sem as reservas e que ninguém pode mais atender (sem dizer quem) */
-export interface HorarioOcupado {
-  inicio: string;
-  fim: string;
-  hora: string;
-}
+export type HorarioOcupado = Disponibilidade['ocupados'][number];
 
 /** GET /negocios/:slug/disponibilidade, com os ocupados (fase 8) */
-export interface DisponibilidadeDoDia extends Disponibilidade {
-  ocupados?: HorarioOcupado[];
-}
+export type DisponibilidadeDoDia = Disponibilidade;
 
 export type ItemDaGrade =
   | { tipo: 'livre'; hora: string; inicio: string; horario: HorarioLivre }
@@ -30,7 +24,7 @@ export function montarGrade(disp: DisponibilidadeDoDia): ItemDaGrade[] {
       inicio: h.inicio,
       horario: h,
     })),
-    ...(disp.ocupados ?? []).map((h) => ({
+    ...disp.ocupados.map((h) => ({
       tipo: 'ocupado' as const,
       hora: h.hora,
       inicio: h.inicio,
