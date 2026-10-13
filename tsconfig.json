@@ -19,5 +19,7 @@
     "strict": true,
     "strictPropertyInitialization": false,
     "types": ["vitest/globals", "node"]
-  }
+  },
+  // A interface (web/) tem o próprio tsconfig
+  "exclude": ["node_modules", "dist", "web"]
 }
