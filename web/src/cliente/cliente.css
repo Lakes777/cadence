@@ -564,8 +564,16 @@
     font-size: 1rem;
   }
 
+  /* Não cabe por cima sem cobrir a hora: entra no fluxo e desce para baixo dela se faltar espaço */
+  .horario {
+    flex-wrap: wrap;
+    row-gap: 0.2rem;
+  }
+
   .horario__carimbo {
-    right: 0.4rem;
+    position: static;
+    margin-left: auto;
+    transform: rotate(-6deg);
     font-size: 0.62rem;
     letter-spacing: 0.08em;
   }

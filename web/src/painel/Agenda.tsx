@@ -398,17 +398,22 @@ function LinhaDaReserva({
       data-testid={`reserva-${r.id}`}
     >
       <td data-rotulo="Hora" className="hora">
-        {hora}–{formatarHora(r.fim, fuso)}
-        {destacada && <span className="selo-nova">Nova</span>}
+        {/* Num elemento só: no estreito, a célula vira grade (rótulo | valor) */}
+        <span>
+          {hora}–{formatarHora(r.fim, fuso)}
+          {destacada && <span className="selo-nova">Nova</span>}
+        </span>
       </td>
       <td data-rotulo="Serviço">{r.servico.nome}</td>
       <td data-rotulo="Profissional">{r.profissional.nome}</td>
       <td data-rotulo="Cliente">
-        {r.cliente.nome}
-        <br />
-        <a className="miudo-email" href={`mailto:${r.cliente.email}`}>
-          {r.cliente.email}
-        </a>
+        <span>
+          {r.cliente.nome}
+          <br />
+          <a className="miudo-email" href={`mailto:${r.cliente.email}`}>
+            {r.cliente.email}
+          </a>
+        </span>
       </td>
       <td data-rotulo="Preço">{formatarDinheiro(r.precoCentavos)}</td>
       <td data-rotulo="Situação">

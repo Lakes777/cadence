@@ -303,9 +303,10 @@ details[open] > summary {
   }
 }
 
+/* Embaixo da hora: ao lado, alargava a coluna no momento em que a reserva chegava */
 .selo-nova {
-  display: inline-block;
-  margin-left: 0.5rem;
+  display: table;
+  margin-top: 0.25rem;
   background: var(--tinta);
   color: var(--papel);
   font-family: var(--titulo);
@@ -338,7 +339,7 @@ details[open] > summary {
 
 /* ---------- Tabelas que viram lista no estreito ---------- */
 
-@media (max-width: 44rem) {
+@media (max-width: 56rem) {
   .tabela--empilha thead {
     position: absolute;
     width: 1px;
