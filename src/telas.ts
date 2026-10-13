@@ -23,8 +23,10 @@ function eDaApi(caminho: string): boolean {
 /**
  * Serve o build das telas pelo mesmo endereço da API. Os arquivos com hash no nome (/assets) ficam
  * em cache para sempre; o index.html nunca, para uma versão nova chegar logo. Qualquer outro GET
- * de navegador (/b/..., /painel/...) recebe o index.html e o react-router decide a tela. Pedido que
- * não pede HTML (fetch, curl) segue para a API e recebe o 404 em JSON.
+ * de navegador (/b/..., /painel/...) recebe o index.html e o react-router decide a tela. Também quem
+ * aceita qualquer tipo (Accept com o curinga de tudo, ou sem Accept), como os robôs que montam a
+ * prévia de um link (LinkedIn, WhatsApp). Só quem pede JSON explicitamente (um fetch da API num
+ * caminho errado) recebe o 404 em JSON.
  */
 export function servirTelas(app: NestExpressApplication, pasta: string): void {
   const raiz = resolve(pasta);
@@ -44,7 +46,9 @@ export function servirTelas(app: NestExpressApplication, pasta: string): void {
     },
   });
   app.use((pedido: Request, resposta: Response, seguir: NextFunction) => {
-    const navegador = pedido.headers.accept?.includes('text/html') ?? false;
+    const aceita = pedido.headers.accept;
+    const navegador =
+      !aceita || aceita.includes('text/html') || aceita.includes('*/*');
     if (
       (pedido.method !== 'GET' && pedido.method !== 'HEAD') ||
       !navegador ||

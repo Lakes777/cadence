@@ -72,6 +72,16 @@ describe('telas servidas pela API (PASTA_DAS_TELAS)', () => {
     expect(resposta.body).toMatchObject({ statusCode: 404 });
   });
 
+  it.each(['*/*', undefined])(
+    'robô de prévia de link (Accept %s) também recebe a tela',
+    async (aceita) => {
+      const pedido = request(app.getHttpServer()).get('/').unset('Accept');
+      if (aceita) void pedido.set('Accept', aceita);
+      const resposta = await pedido.expect(200);
+      expect(resposta.text).toBe(HTML);
+    },
+  );
+
   it('POST fora da API não vira tela', async () => {
     await request(app.getHttpServer())
       .post('/entrar')
