@@ -160,6 +160,11 @@ export class NegociosService {
 function traduzirSlugRepetido(erro: unknown): unknown {
   return erro instanceof Prisma.PrismaClientKnownRequestError &&
     erro.code === 'P2002'
-    ? new ConflictException(SLUG_EM_USO)
+    ? // Com o campo, a interface mostra o erro embaixo do endereço
+      new ConflictException({
+        statusCode: 409,
+        message: SLUG_EM_USO,
+        erros: [{ campo: 'slug', mensagem: SLUG_EM_USO }],
+      })
     : erro;
 }

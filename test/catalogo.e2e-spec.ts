@@ -120,6 +120,13 @@ describe('catálogo', () => {
       expect(resposta.body.message).toBe(
         'Este endereço já está em uso; escolha outro',
       );
+      // A interface mostra o erro no campo do endereço
+      expect(resposta.body.erros).toEqual([
+        {
+          campo: 'slug',
+          mensagem: 'Este endereço já está em uso; escolha outro',
+        },
+      ]);
     });
 
     it('lista só os negócios de quem pediu', async () => {
