@@ -9,6 +9,8 @@ o dono cadastra profissionais, serviços e horários; o cliente escolhe um horá
 O ponto central é que **dois clientes nunca ficam com o mesmo horário**, nem clicando no mesmo
 milissegundo. **Em construção:** as fases abaixo mostram o que já está pronto.
 
+![Cadence em uso: à esquerda, um cliente escolhe Corte com a Camila na sexta e confirma 10:30; à direita, a agenda do dono recebe a reserva na hora, destacada como "Nova", sem recarregar](docs/demo.gif)
+
 É o meu primeiro projeto em **NestJS** (TypeScript).
 
 ## Fases
@@ -363,9 +365,11 @@ máquina e um carimbo vermelho só para o que está ocupado. As rotas das telas 
 endereço serve as duas coisas no deploy (o cookie de renovação é `SameSite=Strict` e só vai para
 a mesma origem).
 
-**Tela do cliente.** A página de início mostra o relógio "09:30 LIVRE" e leva à agenda do
-estabelecimento (na demonstração, direto ao negócio de exemplo; fora dela, pelo endereço que cada
-estabelecimento divulga). Em `/b/<endereço>`, o cliente escolhe o serviço, o profissional (ou
+**Tela do cliente.** A página de início abre com um cartão de ponto animado (as linhas passam pela
+máquina e o carimbo RESERVADO cai num horário), explica como funciona para quem reserva e para o
+estabelecimento e o que o sistema garante. Na demonstração, oferece os dois caminhos: reservar no
+negócio de exemplo ou abrir o painel do dono direto como visitante; fora dela, leva à agenda pelo
+endereço que cada estabelecimento divulga. Em `/b/<endereço>`, o cliente escolhe o serviço, o profissional (ou
 "qualquer um") e o dia, sempre no fuso do negócio, e vê o dia como um cartão de ponto: cada
 horário tem um furo, vazio quando está livre e cheio com o carimbo "OCUPADO" quando já foi
 reservado, sem nunca dizer por quem. Serviço, profissional e dia ficam na URL, então voltar do
@@ -409,6 +413,12 @@ navegáveis pelas setas, avisos ao vivo em `aria-live`, confirmações que levam
 segura (Esc volta) e o foco devolvido ao cartão ou à linha depois de cancelar ou reservar. Animações
 desligam com `prefers-reduced-motion`. Funciona a partir de 360 px (as tabelas do painel viram
 cartões empilhados).
+
+| Início | Reservar |
+|---|---|
+| ![Início: cartão de ponto com o carimbo RESERVADO, o título "Bata o ponto no seu horário.", os botões da demonstração e as seções Como funciona e O que o Cadence garante](docs/inicio.png) | ![Reservar: Corte com a Camila Ribeiro na sexta, 16 de outubro, com os horários livres e os carimbados OCUPADO, e 10:30 escolhido](docs/reservar.png) |
+| **Painel do dono** | **No celular** |
+| ![Agenda do dono: as reservas da sexta com hora, serviço, profissional, cliente, preço e o botão de cancelar](docs/painel.png) | <img src="docs/celular.png" width="260" alt="Reservar no celular: os dias da semana e a grade de horários em duas colunas, com o carimbo embaixo da hora"> |
 
 ## Demonstração
 
