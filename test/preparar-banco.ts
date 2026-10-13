@@ -25,7 +25,7 @@ let redis: StartedRedisContainer | undefined;
  */
 export async function setup(projeto: TestProject): Promise<void> {
   [banco, redis] = await Promise.all([
-    new PostgreSqlContainer('postgres:18-alpine').start(),
+    new PostgreSqlContainer('postgres:17-alpine').start(),
     new RedisContainer('redis:8-alpine').start(),
   ]);
   const url = banco.getConnectionUri();

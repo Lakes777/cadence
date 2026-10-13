@@ -1,0 +1,55 @@
+# Produção na VM ARM da Oracle, a mesma do Beacon e do Pursuit. Só a demonstração vai ao ar
+# (CADENCE_DEMO=true, banco cadence_demo). O banco fica no Postgres do Beacon (usuário próprio) e o
+# Caddy dele fica na frente; o Redis é PRÓPRIO: o do Beacon é cache (apaga chaves quando enche e não
+# grava em disco), e a fila de lembretes precisa de noeviction e de disco.
+name: cadence
+
+x-logs: &logs
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    image: cadence:latest
+    restart: unless-stopped
+    # DATABASE_URL, REDIS_URL, JWT_SEGREDO, CADENCE_DEMO e CONFIANCA_NO_PROXY ficam no .env da VM
+    # (criado pelo preparar-vm.sh) e nunca saem de lá
+    env_file: .env
+    mem_limit: 256m
+    logging: *logs
+    depends_on:
+      fila: { condition: service_healthy }
+    networks:
+      beacon:
+        # O nome que o Caddy do Beacon usa para chegar aqui (reverse_proxy cadence:3000)
+        aliases: [cadence]
+      interna: {}
+
+  fila:
+    image: redis:8-alpine
+    restart: unless-stopped
+    # appendonly: os lembretes agendados sobrevivem a um reinício. noeviction: o BullMQ exige que o
+    # Redis nunca apague chaves para liberar memória (cheio, ele recusa escrever e a API registra)
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "48mb", "--maxmemory-policy", "noeviction"]
+    mem_limit: 64m
+    logging: *logs
+    volumes:
+      - fila:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    # Só na rede própria: nem o Caddy nem os outros projetos enxergam este Redis
+    networks: [interna]
+
+networks:
+  beacon:
+    external: true
+    name: beacon_interna
+  interna: {}
+
+volumes:
+  fila:

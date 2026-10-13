@@ -1,0 +1,12 @@
+# Só o que a imagem precisa: o código, os manifestos e as migrações (nada de segredo nem de build local)
+**/node_modules
+**/dist
+.env
+.env.*
+!.env.exemplo
+.git
+coverage
+web/coverage
+src/generated
+docs
+deploy

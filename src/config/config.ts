@@ -55,6 +55,9 @@ const esquema = z.object({
     .default(false),
   // Na demonstração: contas de visitante criadas por hora, somando todos os IPs
   VISITANTES_POR_HORA: z.coerce.number().int().min(1).default(300),
+  // Pasta com o build das telas (web/dist). Vazia: só a API (no desenvolvimento, quem serve as
+  // telas é o Vite). Na imagem de produção, a API serve as duas coisas no mesmo endereço.
+  PASTA_DAS_TELAS: z.string().min(1).optional(),
 });
 
 export type Config = Readonly<z.infer<typeof esquema>>;
