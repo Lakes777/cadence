@@ -7,6 +7,7 @@ import { BancoModule } from './banco/banco.module.js';
 import { CatalogoModule } from './catalogo/catalogo.module.js';
 import { CONFIG, type Config } from './config/config.js';
 import { ConfigModule } from './config/config.module.js';
+import { DemoModule } from './demo/demo.module.js';
 import { DisponibilidadeModule } from './disponibilidade/disponibilidade.module.js';
 import { LembretesModule } from './lembretes/lembretes.module.js';
 import { ReservasModule } from './reservas/reservas.module.js';
@@ -73,6 +74,7 @@ const ID_DO_PEDIDO = /^[\w-]{1,64}$/;
     LembretesModule,
     SaudeModule,
     TempoRealModule,
+    DemoModule,
   ],
 })
 export class AppModule {}

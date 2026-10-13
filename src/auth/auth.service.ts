@@ -2,12 +2,23 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../banco/prisma.service.js';
-import { Prisma, type Usuario } from '../generated/prisma/client.js';
+import {
+  ehDaDemo,
+  emailDeVisitante,
+  SENHA_DE_DEMONSTRACAO,
+  SLUG_DA_DEMO,
+} from '../demo/demo.js';
+import {
+  Prisma,
+  type Papel,
+  type Usuario,
+} from '../generated/prisma/client.js';
 import type { Cadastro, Login } from './auth.dto.js';
 import { conferirSenha, gerarHashDeSenha } from './senha.js';
 import {
@@ -77,6 +88,37 @@ export class AuthService {
       throw new UnauthorizedException(CREDENCIAIS_ERRADAS);
     }
     return this.abrirSessao(usuario);
+  }
+
+  /**
+   * Demonstração (o SoNaDemoGuard já barrou quem não está nela). O cliente ganha uma conta
+   * nova a cada vez, para cada visitante ver só as próprias reservas; o dono é a conta
+   * compartilhada da Barbearia Exemplo, criada pela semeadura.
+   */
+  async entrarComoVisitante(papel: Papel): Promise<Sessao> {
+    if (papel === 'cliente') {
+      const usuario = await this.prisma.usuario.create({
+        data: {
+          nome: 'Visitante',
+          email: emailDeVisitante(randomUUID()),
+          senhaHash: SENHA_DE_DEMONSTRACAO,
+          papel: 'cliente',
+        },
+      });
+      return this.abrirSessao(usuario);
+    }
+    const negocio = await this.prisma.negocio.findUnique({
+      where: { slug: SLUG_DA_DEMO },
+      include: { dono: true },
+    });
+    // Modo ligado mas `npm run semear-demo` ainda não rodou. A conferência do e-mail é cinto
+    // de segurança: nunca entregar a conta de um dono de verdade que tenha esse endereço
+    if (!negocio || !ehDaDemo(negocio.dono.email)) {
+      throw new ServiceUnavailableException(
+        'A demonstração ainda não foi preparada; tente de novo em instantes',
+      );
+    }
+    return this.abrirSessao(negocio.dono);
   }
 
   /**

@@ -48,6 +48,11 @@ const esquema = z.object({
       'CONFIANCA_NO_PROXY não aceita true/false nem número de saltos; informe os endereços',
     )
     .default('loopback'),
+  // Modo demonstração: visitantes entram sem cadastro na Barbearia Exemplo (ver README).
+  // stringbool porque "false" em texto viraria true com z.coerce.boolean
+  CADENCE_DEMO: z
+    .stringbool({ error: 'CADENCE_DEMO: use true ou false' })
+    .default(false),
 });
 
 export type Config = Readonly<z.infer<typeof esquema>>;
