@@ -20,7 +20,7 @@ milissegundo. **Em construção:** as fases abaixo mostram o que já está pront
 - [x] **5. Reservas:** restrição de exclusão no Postgres contra horários sobrepostos, `Idempotency-Key` contra clique duplo, cancelamento com antecedência mínima, agenda do dono e teste com 50 pedidos simultâneos no mesmo horário
 - [x] **6. Lembretes:** fila (BullMQ + Redis) com o lembrete agendado para 24 h antes; cancelar tira o lembrete da fila; sem Redis, as reservas seguem e uma conferência periódica envia o que a fila perdeu
 - [x] **7. Tempo real:** WebSocket: quem está olhando o dia vê o horário sumir quando outra pessoa reserva, e o cliente recebe as próprias reservas e lembretes na hora, sem recarregar
-- [ ] **8. Interface:** React + Vite (renovação do token em fila única entre as abas), com identidade visual própria ("Relógio de ponto", ver [docs/identidade.md](docs/identidade.md)); tela do cliente, painel do dono e um negócio de demonstração
+- [x] **8. Interface:** React + Vite (renovação do token em fila única entre as abas), com identidade visual própria ("Relógio de ponto", ver [docs/identidade.md](docs/identidade.md)); tela do cliente, painel do dono e um negócio de demonstração
 - [ ] **9. Publicação:** Docker Compose numa VM da Oracle, com HTTPS e vigiado pelo [Vigil](https://github.com/Lakes777/vigil)
 
 ## Rodando
@@ -35,6 +35,19 @@ docker compose up -d        # Postgres (porta 5434) e Redis (porta 6380) de dese
 npm run migrar
 npm run start:dev           # http://localhost:3000/saude
 ```
+
+A interface fica em `web/` (outro terminal). O Vite lê a `PORTA` do `.env` da raiz e repassa
+para a API as rotas dela (`/auth`, `/negocios`, `/reservas`, `/avisos`, `/demo`, `/tempo-real`...):
+
+```bash
+cd web
+npm ci
+npm run dev                 # http://localhost:5180
+```
+
+Para ver com a Barbearia Exemplo, use um banco só da demonstração (a semeadura recusa um banco
+com contas de verdade), com `CADENCE_DEMO=true` e `npm run semear-demo` (ver
+[Demonstração](#demonstração)).
 
 ## Configuração
 
@@ -341,6 +354,62 @@ O servidor manda:
   API, os eventos precisariam passar por um canal comum (por exemplo, o pub/sub do Redis que a
   fila já usa).
 
+## Interface
+
+React 19 + Vite + react-router, em `web/`, com a identidade "Relógio de ponto"
+([docs/identidade.md](docs/identidade.md)): papel creme, tinta preta, números em fonte de
+máquina e um carimbo vermelho só para o que está ocupado. As rotas das telas (`/`, `/b/<endereço>`,
+`/minhas`, `/painel`, `/entrar`, `/cadastro`) não usam nenhum prefixo da API, então o mesmo
+endereço serve as duas coisas no deploy (o cookie de renovação é `SameSite=Strict` e só vai para
+a mesma origem).
+
+**Tela do cliente.** A página de início mostra o relógio "09:30 LIVRE" e leva à agenda do
+estabelecimento (na demonstração, direto ao negócio de exemplo; fora dela, pelo endereço que cada
+estabelecimento divulga). Em `/b/<endereço>`, o cliente escolhe o serviço, o profissional (ou
+"qualquer um") e o dia, sempre no fuso do negócio, e vê o dia como um cartão de ponto: cada
+horário tem um furo, vazio quando está livre e cheio com o carimbo "OCUPADO" quando já foi
+reservado, sem nunca dizer por quem. Serviço, profissional e dia ficam na URL, então voltar do
+login (ou recarregar) devolve a pessoa ao mesmo horário. A reserva vai com uma `Idempotency-Key`
+por tentativa: repetir o mesmo envio depois de uma queda de rede não cria uma segunda reserva.
+Pelo WebSocket, o horário que outra pessoa pega some na hora com um contorno vermelho, e quem
+estava com ele escolhido é avisado ("Alguém reservou 09:30 antes de você"); se o estabelecimento
+muda de endereço, a tela segue para o novo. Em "Minhas reservas", o cliente vê as próximas e as
+anteriores, cancela (com a regra das 2 h explicada pelo servidor) e recebe os lembretes e as
+mudanças das próprias reservas sem recarregar.
+
+**Painel do dono (`/painel`).** Lista os negócios da conta e cria um novo (nome, endereço e fuso).
+Em cada negócio, a **agenda** mostra as reservas do dia ou da semana no relógio do negócio, mesmo
+que o navegador esteja em outro fuso, com quem reservou (nome e e-mail, que só o dono vê), preço e
+situação; dá para filtrar por profissional e cancelar com confirmação. Ela é **ao vivo**: quando
+alguém reserva ou cancela, a lista é buscada de novo sem piscar, a reserva nova fica destacada por
+um instante e o leitor de tela anuncia "Nova reserva às HH:MM". Em **Profissionais**, o dono
+cadastra quem atende, marca os serviços de cada um e monta o horário semanal (vários intervalos
+por dia, com "copiar para os dias úteis"); se dois intervalos se sobrepõem, o erro aparece no
+intervalo certo. Em **Serviços**, cadastra duração e preço (digitado em reais, gravado em centavos
+sem erro de arredondamento). Em **Bloqueios**, marca folgas e feriados com data e hora no fuso do
+negócio; a conversão para UTC é feita só com `Intl`, testada nos dias de horário de verão (a hora
+que não existe é recusada antes de mandar). Em **Negócio**, edita nome, endereço e fuso e copia o
+link público `/b/<endereço>` para divulgar.
+
+**Sessão entre abas.** O token de acesso fica só na memória da aba (nunca no `localStorage`, onde
+um script injetado o leria); quem mantém a pessoa logada é o cookie `httpOnly`. Renovar gasta o
+token de renovação, então duas abas renovando juntas poderiam deixar uma com o token já gasto:
+a renovação passa por uma trava do navegador compartilhada entre as abas (`navigator.locks`), uma
+de cada vez. Entrar ou sair numa aba avisa as outras (`BroadcastChannel`), e as telas montam de
+novo quando a conta muda, para não sobrar na tela o que era da conta anterior. Só `401`/`403`
+encerram a sessão: uma renovação que cai num `502` do deploy ou sem rede tenta de novo em 30 s.
+
+**Tempo real na tela.** Uma conexão por aba. Se ela cair, volta sozinha (espera crescente, com
+sorteio para as abas não voltarem juntas), refaz as assinaturas, entra de novo com o token do
+momento e avisa as telas para buscarem de novo o que pode ter mudado enquanto estava fora.
+
+**Acessibilidade.** Rótulo em todo campo (o erro do servidor vai embaixo e é lido uma vez), foco
+visível, "pular para o conteúdo", título da aba por página, horários lidos como "09:30, livre" e
+navegáveis pelas setas, avisos ao vivo em `aria-live`, confirmações que levam o foco para a saída
+segura (Esc volta) e o foco devolvido ao cartão ou à linha depois de cancelar ou reservar. Animações
+desligam com `prefers-reduced-motion`. Funciona a partir de 360 px (as tabelas do painel viram
+cartões empilhados).
+
 ## Demonstração
 
 Com `CADENCE_DEMO=true`, a API vira uma vitrine para quem quer experimentar sem criar conta: a
@@ -448,4 +517,8 @@ npm test            # unidade (sem banco)
 npm run test:e2e    # ponta a ponta: o Testcontainers sobe um Postgres 18 e um Redis 8 e aplica as migrações
 ```
 
-O CI roda formatação (Prettier), lint (oxlint com tipos), `tsc`, build e as duas suítes.
+Na interface (`cd web`): `npm test` (Vitest + Testing Library, com a API e o WebSocket falsos de
+`web/src/teste/`: nenhum teste fala com um servidor de verdade).
+
+O CI roda, na API, formatação (Prettier), lint (oxlint com tipos), `tsc`, build e as duas suítes;
+na interface, formatação, lint, `tsc`, os testes e o build.

@@ -4,7 +4,8 @@ import type { Profissional, Servico } from '../api/tipos';
 import { Campo } from '../comum/Campo';
 import { Erro } from '../comum/Erro';
 import { NOMES_DOS_DIAS } from '../comum/formatos';
-import { mensagemGeral, useBusca, useEnvio } from './busca';
+import { useBusca } from '../api/busca';
+import { mensagemGeral, useEnvio } from './busca';
 import { useNegocio } from './contexto';
 import { EditorDeHorario } from './EditorDeHorario';
 import { ORDEM_DOS_DIAS } from './semana';
@@ -12,18 +13,15 @@ import { ORDEM_DOS_DIAS } from './semana';
 /** /painel/:negocioId/profissionais */
 export function Profissionais() {
   const negocio = useNegocio();
-  const profissionais = useBusca(
-    (sinal) =>
-      api<Profissional[]>(`/negocios/${negocio.id}/profissionais`, { sinal }),
-    negocio.id,
+  const profissionais = useBusca(negocio.id, (sinal) =>
+    api<Profissional[]>(`/negocios/${negocio.id}/profissionais`, { sinal }),
   );
-  const servicos = useBusca(
-    (sinal) => api<Servico[]>(`/negocios/${negocio.id}/servicos`, { sinal }),
-    negocio.id,
+  const servicos = useBusca(negocio.id, (sinal) =>
+    api<Servico[]>(`/negocios/${negocio.id}/servicos`, { sinal }),
   );
 
   function trocar(p: Profissional) {
-    profissionais.definir((lista) =>
+    profissionais.mudar((lista) =>
       lista?.some((x) => x.id === p.id)
         ? lista.map((x) => (x.id === p.id ? p : x))
         : [...(lista ?? []), p],
@@ -37,9 +35,9 @@ export function Profissionais() {
       {!profissionais.dados && profissionais.carregando && (
         <p className="carregando">Carregando…</p>
       )}
-      {profissionais.erro && (
+      {profissionais.mensagem && (
         <div>
-          <Erro mensagem={profissionais.erro} />
+          <Erro mensagem={profissionais.mensagem} />
           <button
             type="button"
             className="botao botao--contorno botao--pequeno"
@@ -61,7 +59,7 @@ export function Profissionais() {
           negocioId={negocio.id}
           profissional={p}
           servicos={servicos.dados}
-          erroDosServicos={servicos.erro}
+          erroDosServicos={servicos.mensagem}
           aoMudar={trocar}
         />
       ))}

@@ -74,6 +74,18 @@ describe('agenda do dono', () => {
     });
   });
 
+  it('data que não existe na URL (31/02) cai em hoje, sem quebrar a tela', async () => {
+    const falsa = api([]);
+    abrirPainel('/painel/n1?dia=2026-02-31');
+    expect(
+      await screen.findByText('segunda, 19 de outubro'),
+    ).toBeInTheDocument();
+    expect(periodo(falsa.pedidos('GET /negocios/:id/agenda')[0])).toEqual({
+      de: '2026-10-19T03:00:00.000Z',
+      ate: '2026-10-20T03:00:00.000Z',
+    });
+  });
+
   it('setas e "hoje" andam de dia em dia', async () => {
     const user = userEvent.setup();
     const falsa = api([]);

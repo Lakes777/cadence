@@ -322,6 +322,27 @@ input[type='radio'] {
   background: var(--sob-o-mouse);
 }
 
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* "Tem certeza?" ali mesmo (comum/Confirmacao) */
+.confirmacao {
+  border: 2px dashed var(--carimbo);
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  display: grid;
+  gap: 0.5rem;
+  max-width: 22rem;
+}
+
+.confirmacao p {
+  margin: 0;
+}
+
 /* ---------- Carimbo ---------- */
 
 .carimbo {
@@ -373,6 +394,25 @@ input[type='radio'] {
 
 .carregando {
   color: var(--tinta-fraca);
+}
+
+/* "Pular para o conteúdo": invisível até receber o foco pelo teclado */
+.pular {
+  position: absolute;
+  left: 1rem;
+  top: -3rem;
+  z-index: 10;
+  background: var(--tinta);
+  color: var(--papel);
+  padding: 0.5rem 1rem;
+}
+
+.pular:focus {
+  top: 0.5rem;
+}
+
+main:focus {
+  outline: none;
 }
 
 /* Só para leitor de tela */

@@ -6,8 +6,10 @@ import type { Papel, Sessao } from '../api/tipos';
 import { Campo } from '../comum/Campo';
 import { Erro } from '../comum/Erro';
 import { destinoDepoisDeEntrar } from '../comum/volta';
+import { useTitulo } from '../comum/titulo';
 
 export function Cadastro() {
+  useTitulo('Criar conta');
   const [busca] = useSearchParams();
   const navegar = useNavigate();
   const [nome, setNome] = useState('');

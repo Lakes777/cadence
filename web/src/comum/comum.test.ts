@@ -1,6 +1,7 @@
 import { destinoDepoisDeEntrar } from './volta';
 import {
   dataNoFuso,
+  dataValida,
   diaDaSemana,
   formatarDia,
   formatarDinheiro,
@@ -45,5 +46,18 @@ describe('formatos', () => {
 
   it('somar dias atravessa o mês', () => {
     expect(somarDias('2026-10-31', 1)).toBe('2026-11-01');
+  });
+});
+
+describe('data válida', () => {
+  it.each([
+    ['2026-10-19', true],
+    ['2028-02-29', true],
+    ['2026-02-29', false],
+    ['2026-02-31', false],
+    ['2026-13-01', false],
+    ['19/10/2026', false],
+  ])('%s → %s', (data, esperado) => {
+    expect(dataValida(data)).toBe(esperado);
   });
 });

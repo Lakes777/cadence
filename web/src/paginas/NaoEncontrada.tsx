@@ -1,6 +1,8 @@
 import { Link } from 'react-router';
+import { useTitulo } from '../comum/titulo';
 
 export function NaoEncontrada() {
+  useTitulo('Página não encontrada');
   return (
     <section className="cartao">
       <h1>Página não encontrada</h1>

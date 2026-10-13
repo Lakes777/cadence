@@ -1,4 +1,5 @@
 import { Route, Routes } from 'react-router';
+import { useSessao } from './api/hooks';
 import { Inicio } from './cliente/Inicio';
 import { MinhasReservas } from './cliente/MinhasReservas';
 import { Reservar } from './cliente/Reservar';
@@ -14,8 +15,11 @@ import { NaoEncontrada } from './paginas/NaoEncontrada';
  * /saude, /demo, /tempo-real): no deploy, o mesmo endereço serve as duas coisas.
  */
 export function App() {
+  const { usuario } = useSessao();
   return (
-    <Routes>
+    // A conta mudou (outra aba entrou com outra pessoa): as telas montam de novo, sem sobrar
+    // na tela os dados da conta anterior
+    <Routes key={usuario?.id ?? 'sem-conta'}>
       <Route element={<Layout />}>
         <Route index element={<Inicio />} />
         <Route path="b/:slug" element={<Reservar />} />

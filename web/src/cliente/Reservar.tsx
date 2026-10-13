@@ -14,17 +14,15 @@ import {
   diaDaSemana,
   formatarDia,
   formatarDinheiro,
+  hojeNoFuso,
   NOMES_DOS_DIAS,
 } from '../comum/formatos';
+import { useBusca } from '../api/busca';
 import { CartaoDaReserva, formatarDuracao } from './CartaoDaReserva';
-import {
-  diasDaAgenda,
-  montarGrade,
-  useCarga,
-  type DisponibilidadeDoDia,
-} from './dados';
+import { diasDaAgenda, montarGrade, type DisponibilidadeDoDia } from './dados';
 import { GradeDeHorarios } from './GradeDeHorarios';
 import './cliente.css';
+import { useTitulo } from '../comum/titulo';
 
 /** Quanto tempo o contorno vermelho do horário pego ao vivo fica na tela */
 export const CONTORNO_MS = 1000;
@@ -43,9 +41,10 @@ export function Reservar() {
   const { usuario, carregando: sessaoCarregando } = useSessao();
   useAssinatura(slug || undefined);
 
-  const vitrine = useCarga<Vitrine>(slug ? `vitrine:${slug}` : null, (sinal) =>
+  const vitrine = useBusca<Vitrine>(slug ? `vitrine:${slug}` : null, (sinal) =>
     api<Vitrine>(`/negocios/${encodeURIComponent(slug)}`, { sinal }),
   );
+  useTitulo(vitrine.dados?.nome);
   const v = vitrine.dados;
   const servico = v?.servicos.find((s) => s.id === busca.get('servico'));
   const profissionais =
@@ -56,7 +55,12 @@ export function Reservar() {
     (p) => p.id === busca.get('profissional'),
   );
   const fuso = v?.fuso;
-  const dias = useMemo(() => (fuso ? diasDaAgenda(fuso) : []), [fuso]);
+  // "Hoje" entra na dependência: numa aba aberta desde ontem, os dias andam na próxima renderização
+  const hoje = fuso ? hojeNoFuso(fuso) : '';
+  const dias = useMemo(
+    () => (fuso && hoje ? diasDaAgenda(fuso) : []),
+    [fuso, hoje],
+  );
   const diaNaUrl = busca.get('dia');
   const dia = diaNaUrl && dias.includes(diaNaUrl) ? diaNaUrl : dias[0];
 
@@ -69,6 +73,11 @@ export function Reservar() {
   const [erroDoEnvio, setErroDoEnvio] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [feita, setFeita] = useState<Reserva | null>(null);
+  // A tela inteira troca ao confirmar: o foco vai para o cartão, não fica perdido no <body>
+  const cartaoFeito = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (feita) cartaoFeito.current?.focus();
+  }, [feita]);
   /** A chave da tentativa atual: o mesmo envio repetido (após erro de rede) usa a mesma */
   const tentativa = useRef<{ assinatura: string; chave: string } | null>(null);
   useEffect(() => {
@@ -79,7 +88,7 @@ export function Reservar() {
     v && servico && dia
       ? `${slug}|${servico.id}|${profissional?.id ?? ''}|${dia}`
       : null;
-  const disp = useCarga<DisponibilidadeDoDia>(
+  const disp = useBusca<DisponibilidadeDoDia>(
     chaveDoDia,
     (sinal) => {
       const q = new URLSearchParams({ servicoId: servico!.id, data: dia! });
@@ -220,6 +229,7 @@ export function Reservar() {
           Ponto batido: reserva confirmada
         </p>
         <CartaoDaReserva
+          ref={cartaoFeito}
           reserva={feita}
           titulo="h1"
           selo={

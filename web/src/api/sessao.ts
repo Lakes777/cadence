@@ -19,6 +19,8 @@ export interface EstadoDaSessao {
 
 /** Renova este tanto antes de o token vencer */
 const FOLGA_DA_RENOVACAO_S = 60;
+/** Renovação que falhou por rede, 5xx ou 429: tenta de novo depois disto */
+const NOVA_TENTATIVA_MS = 30_000;
 const TRAVA = 'cadence-renovacao';
 
 let token: string | null = null;
@@ -91,17 +93,22 @@ export function renovar(): Promise<boolean> {
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
       });
-      if (!resposta.ok) {
-        // 401: cookie vencido, revogado ou ausente. Outros erros também encerram, para a
-        // tela não ficar presa num token que não renova
+      if (resposta.status === 401 || resposta.status === 403) {
+        // Cookie vencido, revogado ou ausente: a sessão acabou de verdade
         limpar();
         return false;
       }
+      if (!resposta.ok) throw new Error(`renovar: ${resposta.status}`);
       aplicar((await resposta.json()) as Sessao);
       return true;
     } catch {
-      // Sem rede: mantém o estado; a próxima tentativa (ou o próximo pedido) tenta de novo
+      // Sem rede, 5xx (a API reiniciando no deploy) ou 429: o cookie ainda vale, então a
+      // sessão continua e a renovação tenta de novo daqui a pouco
       if (estado.carregando) mudar({ ...estado, carregando: false });
+      if (token) {
+        clearTimeout(relogio);
+        relogio = setTimeout(() => void renovar(), NOVA_TENTATIVA_MS);
+      }
       return false;
     }
   }).finally(() => {

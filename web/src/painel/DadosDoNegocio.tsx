@@ -66,7 +66,7 @@ export function DadosDoNegocio() {
       }),
     );
     if (!salvo) return;
-    negocios.definir((lista) => comNegocio(lista, salvo));
+    negocios.mudar((lista) => comNegocio(lista, salvo));
     setNome(salvo.nome);
     setSlug(salvo.slug);
     setFuso(salvo.fuso);

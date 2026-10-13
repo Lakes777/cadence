@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { Negocio } from '../api/tipos';
-import type { Busca } from './busca';
+import type { Busca } from '../api/busca';
 
 /** Os negócios do dono, buscados uma vez pelo Painel e compartilhados pelas telas dele */
 export const NegociosContexto = createContext<Busca<Negocio[]> | null>(null);

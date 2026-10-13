@@ -1,12 +1,14 @@
-import { NavLink, Link, Outlet, useNavigate } from 'react-router';
+import { NavLink, Link, Outlet, useLocation, useNavigate } from 'react-router';
 import { useDemo, useSessao } from '../api/hooks';
 import { sair } from '../api/sessao';
+import { ErroInesperado } from './ErroInesperado';
 
 /** Cabeçalho (a marca e o que cada papel acessa), a faixa da demonstração e o rodapé */
 export function Layout() {
   const { usuario } = useSessao();
   const demo = useDemo();
   const navegar = useNavigate();
+  const { pathname } = useLocation();
 
   async function aoSair() {
     await sair();
@@ -15,6 +17,9 @@ export function Layout() {
 
   return (
     <>
+      <a className="pular" href="#conteudo">
+        Pular para o conteúdo
+      </a>
       {demo?.demo && (
         <p className="faixa-demo" role="note">
           Demonstração: os dados voltam ao original a cada hora.
@@ -53,8 +58,10 @@ export function Layout() {
           </nav>
         </div>
       </header>
-      <main className="pagina" id="conteudo">
-        <Outlet />
+      <main className="pagina" id="conteudo" tabIndex={-1}>
+        <ErroInesperado key={pathname}>
+          <Outlet />
+        </ErroInesperado>
       </main>
       <footer className="rodape">
         Cadence: agenda de reservas sem reserva dupla ·{' '}

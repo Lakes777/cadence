@@ -4,23 +4,23 @@ import type { Servico } from '../api/tipos';
 import { Campo } from '../comum/Campo';
 import { Erro } from '../comum/Erro';
 import { formatarDinheiro } from '../comum/formatos';
-import { mensagemGeral, useBusca, useEnvio } from './busca';
+import { useBusca } from '../api/busca';
+import { mensagemGeral, useEnvio } from './busca';
 import { useNegocio } from './contexto';
 import { centavosParaReais, reaisParaCentavos } from './dinheiro';
 
 /** /painel/:negocioId/servicos */
 export function Servicos() {
   const negocio = useNegocio();
-  const servicos = useBusca(
-    (sinal) => api<Servico[]>(`/negocios/${negocio.id}/servicos`, { sinal }),
-    negocio.id,
+  const servicos = useBusca(negocio.id, (sinal) =>
+    api<Servico[]>(`/negocios/${negocio.id}/servicos`, { sinal }),
   );
   const [editando, setEditando] = useState<string | null>(null);
   const alternar = useEnvio();
   const editado = servicos.dados?.find((s) => s.id === editando);
 
   function trocar(s: Servico) {
-    servicos.definir((lista) =>
+    servicos.mudar((lista) =>
       lista?.some((x) => x.id === s.id)
         ? lista.map((x) => (x.id === s.id ? s : x))
         : [...(lista ?? []), s],
@@ -64,9 +64,9 @@ export function Servicos() {
       {!servicos.dados && servicos.carregando && (
         <p className="carregando">Carregando…</p>
       )}
-      {servicos.erro && (
+      {servicos.mensagem && (
         <div>
-          <Erro mensagem={servicos.erro} />
+          <Erro mensagem={servicos.mensagem} />
           <button
             type="button"
             className="botao botao--contorno botao--pequeno"

@@ -2,10 +2,12 @@ import { useRef, useState, type KeyboardEvent } from 'react';
 import { api, mensagemDe } from '../api/cliente';
 import { useTempoReal } from '../api/hooks';
 import type { Aviso, Reserva } from '../api/tipos';
+import { Confirmacao } from '../comum/Confirmacao';
 import { Erro } from '../comum/Erro';
 import { CartaoDaReserva } from './CartaoDaReserva';
-import { useCarga } from './dados';
+import { useBusca } from '../api/busca';
 import './cliente.css';
+import { useTitulo } from '../comum/titulo';
 
 type Periodo = 'proximas' | 'anteriores';
 
@@ -37,14 +39,15 @@ function comReserva(
 
 /** /minhas: as reservas do cliente (próximas e anteriores), cancelar e os avisos */
 export function MinhasReservas() {
+  useTitulo('Minhas reservas');
   const [periodo, setPeriodo] = useState<Periodo>('proximas');
   const [anuncio, setAnuncio] = useState('');
   const abas = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const reservas = useCarga<Reserva[]>(`reservas:${periodo}`, (sinal) =>
+  const reservas = useBusca<Reserva[]>(`reservas:${periodo}`, (sinal) =>
     api<Reserva[]>(`/reservas?periodo=${periodo}`, { sinal }),
   );
-  const avisos = useCarga<Aviso[]>('avisos', (sinal) =>
+  const avisos = useBusca<Aviso[]>('avisos', (sinal) =>
     api<Aviso[]>('/avisos', { sinal }),
   );
 
@@ -193,6 +196,7 @@ function ItemDaReserva({
 }) {
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const cartao = useRef<HTMLElement>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   async function cancelar() {
@@ -205,6 +209,8 @@ function ItemDaReserva({
         }),
       );
       setConfirmando(false);
+      // O botão some junto com a confirmação: o foco vai para o cartão (agora "cancelada")
+      requestAnimationFrame(() => cartao.current?.focus());
     } catch (e) {
       // O 422 traz a regra certa ("só até 2 h antes", "já começou")
       setErro(mensagemDe(e));
@@ -214,39 +220,22 @@ function ItemDaReserva({
   }
 
   return (
-    <CartaoDaReserva reserva={reserva} titulo="h2">
+    <CartaoDaReserva ref={cartao} reserva={reserva} titulo="h2">
       {podeCancelar && reserva.status === 'confirmada' && (
         <div className="cartao-de-ponto__acoes">
           <Erro mensagem={erro} />
           {confirmando ? (
-            <div
-              className="confirmar-cancelamento"
-              role="group"
-              aria-label="Confirmar o cancelamento"
-            >
-              <p>Cancelar esta reserva? O horário volta a ficar livre.</p>
-              <div className="acoes">
-                <button
-                  type="button"
-                  className="botao botao--perigo botao--pequeno"
-                  disabled={enviando}
-                  onClick={() => void cancelar()}
-                >
-                  {enviando ? 'Cancelando…' : 'Sim, cancelar'}
-                </button>
-                <button
-                  type="button"
-                  className="botao botao--contorno botao--pequeno"
-                  disabled={enviando}
-                  onClick={() => {
-                    setConfirmando(false);
-                    setErro(null);
-                  }}
-                >
-                  Não, manter
-                </button>
-              </div>
-            </div>
+            <Confirmacao
+              pergunta="Cancelar esta reserva? O horário volta a ficar livre."
+              confirmar="Sim, cancelar"
+              voltar="Não, manter"
+              enviando={enviando}
+              aoConfirmar={() => void cancelar()}
+              aoVoltar={() => {
+                setConfirmando(false);
+                setErro(null);
+              }}
+            />
           ) : (
             <button
               type="button"

@@ -54,6 +54,39 @@ describe('sessão', () => {
   });
 });
 
+describe('sessão: falhas que não são o fim da sessão', () => {
+  it('503 ou sem rede na renovação: continua logada e tenta de novo depois', async () => {
+    vi.useFakeTimers();
+    logarComo(CLIENTE);
+    let vezes = 0;
+    apiFalsa({
+      'POST /auth/renovar': () =>
+        ++vezes === 1 ? { status: 503 } : { corpo: sessao('depois-do-deploy') },
+    });
+    expect(await renovar()).toBe(false);
+    expect(estadoDaSessao().usuario).toEqual(CLIENTE);
+    expect(tokenAtual()).toBe('token-c1');
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(tokenAtual()).toBe('depois-do-deploy');
+  });
+
+  it('sair em outra aba encerra esta também', async () => {
+    logarComo(CLIENTE);
+    const outraAba = new BroadcastChannel('cadence-sessao');
+    outraAba.postMessage('saiu');
+    await vi.waitFor(() => expect(estadoDaSessao().usuario).toBeNull());
+    outraAba.close();
+  });
+
+  it('entrar em outra aba: esta pega o próprio token pelo cookie', async () => {
+    apiFalsa({ 'POST /auth/renovar': { corpo: sessao('desta-aba') } });
+    const outraAba = new BroadcastChannel('cadence-sessao');
+    outraAba.postMessage('entrou');
+    await vi.waitFor(() => expect(tokenAtual()).toBe('desta-aba'));
+    outraAba.close();
+  });
+});
+
 describe('api', () => {
   it('manda o token e devolve o JSON', async () => {
     logarComo(CLIENTE);

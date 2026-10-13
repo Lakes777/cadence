@@ -2,6 +2,7 @@ import { useId, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useDemo } from '../api/hooks';
 import './cliente.css';
+import { useTitulo } from '../comum/titulo';
 
 /** Só letras minúsculas, números e hífen, como o endereço que a API gera */
 const FORMATO_DO_ENDERECO = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -15,6 +16,7 @@ function enderecoDigitado(texto: string): string {
 
 /** Tela de início: o relógio "09:30 LIVRE", o título e o caminho até a agenda */
 export function Inicio() {
+  useTitulo(null);
   const demo = useDemo();
   const navegar = useNavigate();
   const [endereco, setEndereco] = useState('');

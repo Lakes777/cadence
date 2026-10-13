@@ -4,13 +4,12 @@ import { useTempoReal } from '../api/hooks';
 import type { Bloqueio, Profissional } from '../api/tipos';
 import { Campo } from '../comum/Campo';
 import { Erro } from '../comum/Erro';
-import { hojeNoFuso, somarDias } from '../comum/formatos';
-import { mensagemGeral, useBusca, useEnvio } from './busca';
-import { Confirmacao } from './Confirmacao';
+import { dataValida, hojeNoFuso, somarDias } from '../comum/formatos';
+import { useBusca } from '../api/busca';
+import { mensagemGeral, useEnvio } from './busca';
+import { Confirmacao } from '../comum/Confirmacao';
 import { useNegocio } from './contexto';
 import { inicioDoDia, localParaIso, partesLocais } from './fuso';
-
-const DATA_VALIDA = /^\d{4}-\d{2}-\d{2}$/;
 
 /** "25/12/2026 09:00" no fuso do negócio */
 export function formatarMomento(iso: string, fuso: string): string {
@@ -26,27 +25,22 @@ export function Bloqueios() {
   const hoje = hojeNoFuso(fuso);
   const [de, setDe] = useState(hoje);
   const [ate, setAte] = useState(somarDias(hoje, 90));
-  const periodoValido =
-    DATA_VALIDA.test(de) && DATA_VALIDA.test(ate) && de <= ate;
+  const periodoValido = dataValida(de) && dataValida(ate) && de <= ate;
   const deIso = periodoValido ? inicioDoDia(de, fuso).toISOString() : '';
   const ateIso = periodoValido
     ? inicioDoDia(somarDias(ate, 1), fuso).toISOString()
     : '';
 
-  const bloqueios = useBusca(
-    (sinal) =>
-      periodoValido
-        ? api<Bloqueio[]>(
-            `/negocios/${negocio.id}/bloqueios?de=${encodeURIComponent(deIso)}&ate=${encodeURIComponent(ateIso)}`,
-            { sinal },
-          )
-        : Promise.resolve([]),
-    `${negocio.id}|${deIso}|${ateIso}`,
+  const bloqueios = useBusca(`${negocio.id}|${deIso}|${ateIso}`, (sinal) =>
+    periodoValido
+      ? api<Bloqueio[]>(
+          `/negocios/${negocio.id}/bloqueios?de=${encodeURIComponent(deIso)}&ate=${encodeURIComponent(ateIso)}`,
+          { sinal },
+        )
+      : Promise.resolve([]),
   );
-  const profissionais = useBusca(
-    (sinal) =>
-      api<Profissional[]>(`/negocios/${negocio.id}/profissionais`, { sinal }),
-    negocio.id,
+  const profissionais = useBusca(negocio.id, (sinal) =>
+    api<Profissional[]>(`/negocios/${negocio.id}/profissionais`, { sinal }),
   );
 
   useTempoReal((evento) => {
@@ -72,7 +66,7 @@ export function Bloqueios() {
     });
     setConfirmando(null);
     if (!feito) return;
-    bloqueios.definir((lista) => lista?.filter((x) => x.id !== b.id));
+    bloqueios.mudar((lista) => lista?.filter((x) => x.id !== b.id));
     setSituacao('Bloqueio removido.');
   }
 
@@ -133,9 +127,9 @@ export function Bloqueios() {
       {!bloqueios.dados && bloqueios.carregando && (
         <p className="carregando">Carregando…</p>
       )}
-      {bloqueios.erro && (
+      {bloqueios.mensagem && (
         <div>
-          <Erro mensagem={bloqueios.erro} />
+          <Erro mensagem={bloqueios.mensagem} />
           <button
             type="button"
             className="botao botao--contorno botao--pequeno"

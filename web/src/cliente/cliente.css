@@ -446,12 +446,6 @@
   }
 }
 
-.acoes {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
 /* ---------- Cartão de ponto (reserva) ---------- */
 
 .cartao-de-ponto {
@@ -538,10 +532,6 @@
   border: 3px double var(--tinta);
   padding: 0.1rem 0.5rem;
   transform: rotate(-8deg);
-}
-
-.confirmar-cancelamento p {
-  margin-bottom: 0.5rem;
 }
 
 /* ---------- Minhas reservas ---------- */

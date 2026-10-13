@@ -7,9 +7,11 @@ import { Erro } from '../comum/Erro';
 import { mensagemGeral, useEnvio } from './busca';
 import { comNegocio, useNegocios } from './contexto';
 import { SeletorDeFuso } from './SeletorDeFuso';
+import { useTitulo } from '../comum/titulo';
 
 /** /painel: os negócios do dono, ou o convite para criar o primeiro */
 export function MeusNegocios() {
+  useTitulo('Meus negócios');
   const negocios = useNegocios();
   const [criando, setCriando] = useState(false);
   const lista = negocios.dados;
@@ -20,9 +22,9 @@ export function MeusNegocios() {
       {lista === undefined && negocios.carregando && (
         <p className="carregando">Carregando…</p>
       )}
-      {lista === undefined && negocios.erro && (
+      {lista === undefined && negocios.mensagem && (
         <div>
-          <Erro mensagem={negocios.erro} />
+          <Erro mensagem={negocios.mensagem} />
           <button
             type="button"
             className="botao botao--contorno"
@@ -100,7 +102,7 @@ function NovoNegocio({ aoVoltar }: { aoVoltar?: () => void }) {
       }),
     );
     if (!criado) return;
-    negocios.definir((lista) => comNegocio(lista, criado));
+    negocios.mudar((lista) => comNegocio(lista, criado));
     await navegar(`/painel/${criado.id}`);
   }
 

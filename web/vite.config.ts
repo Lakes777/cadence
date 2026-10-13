@@ -1,8 +1,19 @@
+import { readFileSync } from 'node:fs';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
-/** Em dev, a API (npm run start:dev na raiz) roda na 8095; o Vite repassa estas rotas a ela */
-const API = process.env.CADENCE_API ?? 'http://localhost:8095';
+/** A PORTA do .env da raiz (a da API em dev), ou a padrão dela */
+function portaDaApi(): string {
+  try {
+    const env = readFileSync(new URL('../.env', import.meta.url), 'utf8');
+    return /^PORTA=(\d+)/m.exec(env)?.[1] ?? '3000';
+  } catch {
+    return '3000';
+  }
+}
+
+/** Em dev, o Vite repassa as rotas da API (npm run start:dev na raiz) para ela */
+const API = process.env.CADENCE_API ?? `http://localhost:${portaDaApi()}`;
 const ROTAS_DA_API = [
   '/auth',
   '/negocios',

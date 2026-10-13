@@ -20,13 +20,6 @@
   margin: 0.75rem 0;
 }
 
-.acoes {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 /* ---------- Topo e navegação interna ---------- */
 
 .painel-topo p {
@@ -327,18 +320,8 @@ details[open] > summary {
   text-align: right;
 }
 
-.confirmacao {
-  border: 2px dashed var(--carimbo);
-  padding: 0.6rem 0.75rem;
-  text-align: left;
-  display: grid;
-  gap: 0.5rem;
-  max-width: 22rem;
+.acoes-da-linha .confirmacao {
   margin-left: auto;
-}
-
-.confirmacao p {
-  margin: 0;
 }
 
 .inativo td {

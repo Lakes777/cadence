@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 import type { Reserva } from '../api/tipos';
 import {
   dataNoFuso,
@@ -24,8 +24,11 @@ export function CartaoDaReserva({
   titulo,
   selo,
   children,
+  ref,
 }: {
   reserva: Reserva;
+  /** Para levar o foco ao cartão depois de uma ação que some com o botão (cancelar, reservar) */
+  ref?: Ref<HTMLElement>;
   /** Nível do título (h2 na lista, h1 na confirmação) */
   titulo: 'h1' | 'h2';
   selo?: ReactNode;
@@ -36,6 +39,8 @@ export function CartaoDaReserva({
   const cancelada = reserva.status === 'cancelada';
   return (
     <article
+      ref={ref}
+      tabIndex={-1}
       className={`cartao cartao-de-ponto${cancelada ? ' cartao-de-ponto--cancelada' : ''}`}
     >
       <header className="cartao-de-ponto__topo">

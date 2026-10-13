@@ -1,26 +1,29 @@
 import { useEffect, useId, useRef } from 'react';
 
 /**
- * Pergunta "tem certeza?" ali mesmo, sem janela por cima: role="alertdialog" e o foco vai para
+ * Pergunta "tem certeza?" ali mesmo (cliente e painel), sem janela por cima: role="alertdialog" e o foco vai para
  * "Voltar" (a saída segura), então o leitor de tela lê a pergunta. Esc também volta.
  */
 export function Confirmacao({
   pergunta,
   confirmar,
   enviando,
+  voltar = 'Voltar',
   aoConfirmar,
   aoVoltar,
 }: {
   pergunta: string;
   confirmar: string;
+  /** O texto da saída segura (padrão "Voltar") */
+  voltar?: string;
   enviando: boolean;
   aoConfirmar: () => void;
   aoVoltar: () => void;
 }) {
   const id = useId();
-  const voltar = useRef<HTMLButtonElement>(null);
+  const saida = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    voltar.current?.focus();
+    saida.current?.focus();
   }, []);
 
   return (
@@ -43,13 +46,13 @@ export function Confirmacao({
           {enviando ? 'Enviando…' : confirmar}
         </button>
         <button
-          ref={voltar}
+          ref={saida}
           type="button"
           className="botao botao--contorno botao--pequeno"
           disabled={enviando}
           onClick={aoVoltar}
         >
-          Voltar
+          {voltar}
         </button>
       </div>
     </div>

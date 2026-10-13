@@ -7,6 +7,7 @@ import { NegocioContexto, useNegocios } from './contexto';
 import { DadosDoNegocio } from './DadosDoNegocio';
 import { Profissionais } from './Profissionais';
 import { Servicos } from './Servicos';
+import { useTitulo } from '../comum/titulo';
 
 const ABAS = [
   { para: '', nome: 'Agenda' },
@@ -21,25 +22,23 @@ export function PainelDoNegocio() {
   const { negocioId } = useParams();
   const negocios = useNegocios();
   const negocio = negocios.dados?.find((n) => n.id === negocioId);
+  useTitulo(negocio ? `${negocio.nome} · Painel` : 'Painel');
 
   // Uma assinatura para todas as abas: a agenda e os bloqueios ouvem os eventos
   useAssinatura(negocio?.slug);
   useTempoReal((evento) => {
-    // O endereço mudou em outra aba: a lista (e o slug assinado) precisa do novo
-    if (
-      evento.tipo === 'catalogo' &&
-      evento.negocio === negocio?.slug &&
-      evento.novoEndereco
-    ) {
+    // O negócio mudou em outra aba (endereço, fuso, nome): a lista precisa do novo, senão a
+    // agenda seguiria contando as horas no fuso antigo
+    if (evento.tipo === 'catalogo' && evento.negocio === negocio?.slug) {
       negocios.recarregar();
     }
   });
 
   if (!negocios.dados) {
-    if (negocios.erro) {
+    if (negocios.mensagem) {
       return (
         <div>
-          <Erro mensagem={negocios.erro} />
+          <Erro mensagem={negocios.mensagem} />
           <button
             type="button"
             className="botao botao--contorno"

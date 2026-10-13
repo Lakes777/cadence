@@ -5,6 +5,7 @@ import { useTempoReal } from '../api/hooks';
 import type { ItemDaAgenda, Profissional, Reserva } from '../api/tipos';
 import {
   dataNoFuso,
+  dataValida,
   diaDaSemana,
   formatarDia,
   formatarDinheiro,
@@ -12,15 +13,13 @@ import {
   hojeNoFuso,
   somarDias,
 } from '../comum/formatos';
-import { useBusca } from './busca';
-import { Confirmacao } from './Confirmacao';
+import { useBusca } from '../api/busca';
+import { Confirmacao } from '../comum/Confirmacao';
 import { useNegocio } from './contexto';
 import { inicioDoDia } from './fuso';
 
 /** Quanto tempo a reserva que chegou ao vivo fica destacada */
 export const DESTAQUE_MS = 2000;
-
-const DATA_VALIDA = /^\d{4}-\d{2}-\d{2}$/;
 
 /** A segunda-feira da semana daquela data (a semana da agenda vai de segunda a domingo) */
 function segundaDe(data: string): string {
@@ -39,7 +38,7 @@ export function Agenda() {
   const visao = busca.get('visao') === 'semana' ? 'semana' : 'dia';
   const hoje = hojeNoFuso(fuso);
   const pedido = busca.get('dia');
-  const dia = pedido && DATA_VALIDA.test(pedido) ? pedido : hoje;
+  const dia = pedido && dataValida(pedido) ? pedido : hoje;
   const filtro = busca.get('profissional') ?? '';
 
   const primeiro = visao === 'dia' ? dia : segundaDe(dia);
@@ -52,27 +51,49 @@ export function Agenda() {
   const ate = inicioDoDia(somarDias(ultimo, 1), fuso).toISOString();
   const chave = `${negocio.id}|${de}|${ate}`;
 
+  // ---- Ao vivo ----
+  const aoVivo = useRef(false);
+  const [destacadas, setDestacadas] = useState<ReadonlySet<string>>(new Set());
+  const [anuncio, setAnuncio] = useState('');
+  const relogio = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(relogio.current), []);
+
+  /**
+   * Uma busca causada por evento ao vivo: o que não estava na lista anterior é novo. Calculado
+   * quando os dados chegam (antes de a tela mudar), para o destaque aparecer junto com a linha.
+   */
+  function chegou(lista: ItemDaAgenda[], anterior: ItemDaAgenda[] | undefined) {
+    const veioAoVivo = aoVivo.current;
+    aoVivo.current = false;
+    if (!veioAoVivo || !anterior) return;
+    const antes = new Set(anterior.map((r) => r.id));
+    const chegaram = lista.filter(
+      (r) => r.status === 'confirmada' && !antes.has(r.id),
+    );
+    if (!chegaram.length) return;
+    setDestacadas(new Set(chegaram.map((r) => r.id)));
+    const horas = chegaram.map((r) => formatarHora(r.inicio, fuso));
+    setAnuncio(
+      horas.length === 1
+        ? `Nova reserva às ${horas[0]}.`
+        : `Novas reservas às ${horas.join(', ')}.`,
+    );
+    clearTimeout(relogio.current);
+    relogio.current = setTimeout(() => setDestacadas(new Set()), DESTAQUE_MS);
+  }
+
   const agenda = useBusca(
+    chave,
     (sinal) =>
       api<ItemDaAgenda[]>(
         `/negocios/${negocio.id}/agenda?de=${encodeURIComponent(de)}&ate=${encodeURIComponent(ate)}`,
         { sinal },
       ),
-    chave,
+    chegou,
   );
-  const profissionais = useBusca(
-    (sinal) =>
-      api<Profissional[]>(`/negocios/${negocio.id}/profissionais`, { sinal }),
-    negocio.id,
+  const profissionais = useBusca(negocio.id, (sinal) =>
+    api<Profissional[]>(`/negocios/${negocio.id}/profissionais`, { sinal }),
   );
-
-  // ---- Ao vivo ----
-  const aoVivo = useRef(false);
-  const conhecidas = useRef<{ chave: string; ids: Set<string> } | null>(null);
-  const [destacadas, setDestacadas] = useState<ReadonlySet<string>>(new Set());
-  const [anuncio, setAnuncio] = useState('');
-  const relogio = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(relogio.current), []);
 
   useTempoReal((evento) => {
     const doNegocio =
@@ -96,33 +117,6 @@ export function Agenda() {
     }
   });
 
-  useEffect(() => {
-    const lista = agenda.dados;
-    if (!lista) return;
-    const antes = conhecidas.current;
-    if (aoVivo.current && antes?.chave === chave) {
-      const chegaram = lista.filter(
-        (r) => r.status === 'confirmada' && !antes.ids.has(r.id),
-      );
-      if (chegaram.length) {
-        setDestacadas(new Set(chegaram.map((r) => r.id)));
-        const horas = chegaram.map((r) => formatarHora(r.inicio, fuso));
-        setAnuncio(
-          horas.length === 1
-            ? `Nova reserva às ${horas[0]}.`
-            : `Novas reservas às ${horas.join(', ')}.`,
-        );
-        clearTimeout(relogio.current);
-        relogio.current = setTimeout(
-          () => setDestacadas(new Set()),
-          DESTAQUE_MS,
-        );
-      }
-    }
-    aoVivo.current = false;
-    conhecidas.current = { chave, ids: new Set(lista.map((r) => r.id)) };
-  }, [agenda.dados, chave, fuso]);
-
   // ---- Cancelar ----
   const [confirmando, setConfirmando] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState(false);
@@ -137,13 +131,17 @@ export function Agenda() {
       const feita = await api<Reserva>(`/reservas/${item.id}/cancelar`, {
         metodo: 'POST',
       });
-      agenda.definir((lista) =>
+      agenda.mudar((lista) =>
         lista?.map((r) =>
           r.id === item.id ? { ...r, status: feita.status } : r,
         ),
       );
       setAnuncio(
         `Reserva das ${formatarHora(item.inicio, fuso)} de ${item.cliente.nome} cancelada.`,
+      );
+      // A confirmação some: o foco volta para a linha da reserva, não fica perdido no <body>
+      requestAnimationFrame(() =>
+        document.getElementById(`linha-${item.id}`)?.focus(),
       );
     } catch (e) {
       // 422 (já começou), 404...: a mensagem do servidor diz o porquê
@@ -235,7 +233,7 @@ export function Agenda() {
             type="date"
             value={dia}
             onChange={(e) =>
-              DATA_VALIDA.test(e.target.value) && ir({ dia: e.target.value })
+              dataValida(e.target.value) && ir({ dia: e.target.value })
             }
           />
         </label>
@@ -271,10 +269,10 @@ export function Agenda() {
       {!agenda.dados && agenda.carregando && (
         <p className="carregando">Carregando a agenda…</p>
       )}
-      {agenda.erro && (
+      {agenda.mensagem && (
         <div>
           <p className="alerta" role="alert">
-            {agenda.erro}
+            {agenda.mensagem}
           </p>
           <button
             type="button"
@@ -393,7 +391,12 @@ function LinhaDaReserva({
     .join(' ');
 
   return (
-    <tr className={classes || undefined} data-testid={`reserva-${r.id}`}>
+    <tr
+      id={`linha-${r.id}`}
+      tabIndex={-1}
+      className={classes || undefined}
+      data-testid={`reserva-${r.id}`}
+    >
       <td data-rotulo="Hora" className="hora">
         {hora}–{formatarHora(r.fim, fuso)}
         {destacada && <span className="selo-nova">Nova</span>}

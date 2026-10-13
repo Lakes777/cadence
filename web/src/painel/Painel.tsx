@@ -2,7 +2,7 @@ import { Route, Routes } from 'react-router';
 import { api } from '../api/cliente';
 import { useDemo } from '../api/hooks';
 import type { Negocio } from '../api/tipos';
-import { useBusca } from './busca';
+import { useBusca } from '../api/busca';
 import { NegociosContexto } from './contexto';
 import { MeusNegocios } from './MeusNegocios';
 import { PainelDoNegocio } from './PainelDoNegocio';
@@ -14,9 +14,8 @@ import './painel.css';
  */
 export function Painel() {
   const demo = useDemo();
-  const negocios = useBusca(
-    (sinal) => api<Negocio[]>('/negocios', { sinal }),
-    'negocios',
+  const negocios = useBusca('negocios', (sinal) =>
+    api<Negocio[]>('/negocios', { sinal }),
   );
 
   return (

@@ -51,6 +51,16 @@ export function hojeNoFuso(fuso: string, agora = new Date()): string {
   return dataNoFuso(agora, fuso);
 }
 
+/**
+ * A data YYYY-MM-DD existe no calendário? "2026-02-31" tem o formato certo e não existe: vinda
+ * de um link editado à mão, quebraria as contas de fuso.
+ */
+export function dataValida(data: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return false;
+  const [a, m, d] = data.split('-').map(Number);
+  return new Date(Date.UTC(a, m - 1, d)).toISOString().slice(0, 10) === data;
+}
+
 /** Soma dias a uma data YYYY-MM-DD */
 export function somarDias(data: string, dias: number): string {
   const [a, m, d] = data.split('-').map(Number);
