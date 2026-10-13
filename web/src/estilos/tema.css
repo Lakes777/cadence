@@ -1,7 +1,7 @@
 /*
  * Identidade "Relógio de ponto" (docs/identidade.md): o cartão de ponto da fábrica.
  * Papel creme, tinta preta, números em fonte de máquina e um carimbo vermelho só para o que
- * está ocupado, erros e o "LIVRE" da tela de início. Peças comuns às duas telas ficam aqui;
+ * está ocupado, erros e o RESERVADO da tela de início. Peças comuns às duas telas ficam aqui;
  * o que é só do cliente ou só do painel fica na pasta de cada um.
  */
 
@@ -424,6 +424,78 @@ main:focus {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* ---------- Movimento ---------- */
+
+/*
+ * Tudo aqui só liga sem prefers-reduced-motion. A entrada das telas usa o filho do <main>, que
+ * monta de novo a cada rota (ErroInesperado com key do caminho).
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .pagina > * {
+    animation: tela-entra 0.35s ease-out both;
+  }
+
+  .botao,
+  .botao-link,
+  .navegacao a,
+  .opcao,
+  .dia,
+  .horario,
+  .aba,
+  .abas a,
+  input,
+  select,
+  textarea {
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.15s ease,
+      transform 0.15s ease;
+  }
+
+  /* O botão "levanta" com a sombra de carimbo e afunda ao clicar */
+  .botao:hover:not(:disabled) {
+    transform: translate(-2px, -2px);
+    box-shadow: 3px 3px 0 var(--tinta);
+  }
+
+  .botao--perigo:hover:not(:disabled) {
+    box-shadow: 3px 3px 0 var(--carimbo);
+  }
+
+  .botao:active:not(:disabled) {
+    transform: translate(0, 0);
+    box-shadow: 0 0 0 var(--tinta);
+  }
+
+  .opcao:hover,
+  .dia:hover,
+  .horario--livre:hover {
+    transform: translateY(-2px);
+  }
+
+  .revelar {
+    opacity: 0;
+    transform: translateY(1rem);
+    transition:
+      opacity 0.6s ease-out,
+      transform 0.6s ease-out;
+  }
+
+  .revelar.revelado {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tela-entra {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

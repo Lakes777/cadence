@@ -1,39 +1,57 @@
 /*
  * Telas do cliente (início, reservar, minhas reservas). Usa só os tokens de tema.css:
- * papel, tinta, carimbo (só ocupado, erro e o "LIVRE" do início), fio (tracejados).
+ * papel, tinta, carimbo (só ocupado, erro e o RESERVADO do início), fio (tracejados).
  */
 
 /* ---------- Início ---------- */
 
 .inicio {
   display: grid;
+  gap: 3.5rem;
+  padding: 1.5rem 0 1rem;
+}
+
+.inicio__topo {
+  display: grid;
   gap: 2rem;
   align-items: center;
-  padding: 1.5rem 0 2rem;
 }
 
 @media (min-width: 52rem) {
-  .inicio {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 3rem;
-    padding-top: 3rem;
+  .inicio__topo {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 3.5rem;
+    padding-top: 2rem;
   }
 }
 
-.relogio {
-  border: var(--borda);
-  border-radius: var(--raio);
-  padding: 1.5rem 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  position: relative;
+.inicio__caminhos {
+  margin: 0.5rem 0 0.75rem;
 }
 
-.relogio::before,
-.relogio::after {
-  /* Os furos do cartão de ponto */
+.inicio__dono {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+/* ---------- Início: o cartão de ponto ---------- */
+
+.cartao-inicio {
+  --linha: 2.6rem;
+  border: var(--borda);
+  border-radius: var(--raio);
+  background: #fbf7ee;
+  padding: 2.25rem 1.25rem 1.25rem;
+  position: relative;
+  max-width: 24rem;
+  width: 100%;
+  justify-self: center;
+  box-shadow: 6px 6px 0 var(--tinta);
+}
+
+.cartao-inicio::before,
+.cartao-inicio::after {
+  /* Os furos do topo, por onde o cartão fica pendurado */
   content: '';
   position: absolute;
   top: 0.75rem;
@@ -41,33 +59,201 @@
   height: 0.75rem;
   border: var(--borda);
   border-radius: 50%;
+  background: var(--papel);
 }
 
-.relogio::before {
+.cartao-inicio::before {
   left: 0.75rem;
 }
 
-.relogio::after {
+.cartao-inicio::after {
   right: 0.75rem;
 }
 
-.relogio__hora {
-  font-family: var(--mono);
-  font-weight: 600;
-  font-size: clamp(3.5rem, 18vw, 7rem);
-  line-height: 1;
-  letter-spacing: 0.02em;
-}
-
-.relogio__livre {
+.cartao-inicio__topo {
+  display: flex;
+  justify-content: space-between;
   font-family: var(--titulo);
   font-weight: 700;
-  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  border-bottom: var(--borda);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.cartao-inicio__linhas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cartao-inicio__linha {
+  display: grid;
+  grid-template-columns: 1rem 4.5rem 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: var(--linha);
+  border-bottom: var(--tracejado);
+}
+
+.cartao-inicio__furo {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 1.5px solid var(--tinta);
+  border-radius: 50%;
+}
+
+.cartao-inicio__linha--ocupado .cartao-inicio__furo,
+.cartao-inicio__linha--reservado .cartao-inicio__furo {
+  background: var(--tinta);
+}
+
+.cartao-inicio__hora {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 1.15rem;
+}
+
+.cartao-inicio__estado {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--tinta-fraca);
+}
+
+.cartao-inicio__linha--ocupado .cartao-inicio__hora,
+.cartao-inicio__linha--ocupado .cartao-inicio__estado {
+  text-decoration: line-through;
+  color: var(--tinta-fraca);
+}
+
+.cartao-inicio__carimbo {
+  justify-self: start;
+  font-family: var(--titulo);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
   color: var(--carimbo);
   border: 3px solid var(--carimbo);
-  padding: 0.1rem 0.6rem 0.1rem 0.9rem;
-  transform: rotate(-4deg);
-  font-size: clamp(1.1rem, 5vw, 1.6rem);
+  padding: 0.05rem 0.5rem 0.05rem 0.75rem;
+  transform: rotate(-5deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* As linhas aparecem uma a uma, como o cartão passando na máquina */
+  .cartao-inicio__linha {
+    animation: linha-entra 0.4s ease-out both;
+    animation-delay: calc(0.25s + var(--ordem) * 0.12s);
+  }
+
+  .cartao-inicio__linha--reservado .cartao-inicio__furo {
+    animation: furo-perfura 0.25s ease-out 1.5s both;
+  }
+
+  /* Depois, o carimbo cai na 09:30 e o cartão sente a batida */
+  .cartao-inicio__carimbo {
+    animation: carimbo-cai 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) 1.4s both;
+  }
+
+  .cartao-inicio {
+    animation: cartao-batida 0.3s ease-out 1.7s;
+  }
+}
+
+@keyframes linha-entra {
+  from {
+    opacity: 0;
+    transform: translateX(-0.75rem);
+  }
+}
+
+@keyframes furo-perfura {
+  from {
+    background: transparent;
+    transform: scale(1.6);
+  }
+}
+
+@keyframes carimbo-cai {
+  from {
+    opacity: 0;
+    transform: rotate(-14deg) scale(2.2);
+  }
+  70% {
+    opacity: 1;
+  }
+}
+
+@keyframes cartao-batida {
+  40% {
+    transform: translate(2px, 2px);
+    box-shadow: 4px 4px 0 var(--tinta);
+  }
+}
+
+/* ---------- Início: seções ---------- */
+
+.inicio__secao > h2 {
+  border-bottom: var(--borda);
+  padding-bottom: 0.4rem;
+}
+
+.inicio__colunas {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 46rem) {
+  .inicio__colunas {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.inicio__colunas .cartao + .cartao {
+  margin-top: 0;
+}
+
+.passos__lista {
+  margin: 0;
+  padding-left: 1.4rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.passos__lista li::marker {
+  font-weight: 600;
+}
+
+.garantias {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1.5rem;
+}
+
+@media (min-width: 46rem) {
+  .garantias {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.garantia {
+  border-top: var(--tracejado);
+  padding-top: 0.75rem;
+}
+
+.garantia__numero {
+  display: block;
+  font-weight: 600;
+  color: var(--carimbo);
+  margin-bottom: 0.25rem;
+}
+
+.garantia p {
+  color: var(--tinta-fraca);
+  font-size: 0.9rem;
 }
 
 .inicio__titulo {
