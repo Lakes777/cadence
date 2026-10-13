@@ -142,7 +142,7 @@ profissional de um bloqueio é do mesmo negócio. Duas trocas de horário ao mes
 ## Disponibilidade
 
 `GET /negocios/:slug/disponibilidade?servicoId=...&data=2026-10-12[&profissionalId=...]`, sem
-login, devolve os horários livres daquele dia para o serviço:
+login, devolve os horários livres daquele dia para o serviço e os que já foram reservados:
 
 ```json
 {
@@ -152,6 +152,9 @@ login, devolve os horários livres daquele dia para o serviço:
   "horarios": [
     { "inicio": "2026-10-12T12:00:00.000Z", "fim": "2026-10-12T12:30:00.000Z",
       "hora": "09:00", "profissionalIds": ["..."] }
+  ],
+  "ocupados": [
+    { "inicio": "2026-10-12T12:30:00.000Z", "fim": "2026-10-12T13:00:00.000Z", "hora": "09:30" }
   ]
 }
 ```
@@ -162,9 +165,15 @@ login, devolve os horários livres daquele dia para o serviço:
 - Nada começa em menos de **30 min** a partir de agora; a agenda abre **60 dias** à frente
   (`400` depois disso); dia que já passou volta vazio.
 - `data` é o dia no **fuso do negócio**; `inicio` e `fim` saem em UTC e `hora` no relógio local.
+- `ocupados` são os horários que seriam oferecidos se não houvesse reservas e que agora ninguém
+  pode atender (a tela os mostra com o carimbo "OCUPADO"). Sem `profissionalId`, um horário só
+  conta como ocupado se nenhum profissional puder atender; com ele, vale a agenda daquele
+  profissional. Bloqueio não vira ocupado (o horário só deixa de aparecer), e o ocupado não diz
+  quem reservou nem com qual profissional.
 
 O cálculo é uma função pura (`src/disponibilidade/calculo.ts`): recebe o dia, o fuso, a duração,
-os expedientes, os bloqueios, as reservas (a partir da fase 5) e "agora", e devolve os horários.
+os expedientes, os bloqueios, as reservas (a partir da fase 5) e "agora", e devolve os horários
+(`calcularDia` faz a mesma conta sem as reservas para achar os ocupados).
 Por isso é testada sem banco e sem relógio. O relógio da API é injetado (`RELOGIO`), e os testes
 de ponta a ponta o param numa segunda-feira conhecida.
 

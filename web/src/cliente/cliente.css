@@ -1,0 +1,634 @@
+/*
+ * Telas do cliente (início, reservar, minhas reservas). Usa só os tokens de tema.css:
+ * papel, tinta, carimbo (só ocupado, erro e o "LIVRE" do início), fio (tracejados).
+ */
+
+/* ---------- Início ---------- */
+
+.inicio {
+  display: grid;
+  gap: 2rem;
+  align-items: center;
+  padding: 1.5rem 0 2rem;
+}
+
+@media (min-width: 52rem) {
+  .inicio {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 3rem;
+    padding-top: 3rem;
+  }
+}
+
+.relogio {
+  border: var(--borda);
+  border-radius: var(--raio);
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+}
+
+.relogio::before,
+.relogio::after {
+  /* Os furos do cartão de ponto */
+  content: '';
+  position: absolute;
+  top: 0.75rem;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: var(--borda);
+  border-radius: 50%;
+}
+
+.relogio::before {
+  left: 0.75rem;
+}
+
+.relogio::after {
+  right: 0.75rem;
+}
+
+.relogio__hora {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: clamp(3.5rem, 18vw, 7rem);
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.relogio__livre {
+  font-family: var(--titulo);
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: var(--carimbo);
+  border: 3px solid var(--carimbo);
+  padding: 0.1rem 0.6rem 0.1rem 0.9rem;
+  transform: rotate(-4deg);
+  font-size: clamp(1.1rem, 5vw, 1.6rem);
+}
+
+.inicio__titulo {
+  font-size: clamp(2rem, 8vw, 3.25rem);
+}
+
+/* Duas linhas, mas com o espaço no nome que o leitor de tela lê */
+.inicio__titulo > span {
+  display: block;
+}
+
+.inicio__endereco {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 30rem;
+}
+
+.inicio__rotulo {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.inicio__linha {
+  display: flex;
+  align-items: stretch;
+}
+
+.inicio__prefixo {
+  border: var(--borda);
+  border-right: 0;
+  padding: 0.5rem 0.5rem;
+  display: flex;
+  align-items: center;
+  background: var(--sob-o-mouse);
+}
+
+.inicio__linha input {
+  min-width: 0;
+}
+
+.inicio__endereco .botao {
+  justify-self: start;
+  margin-top: 0.25rem;
+}
+
+/* ---------- Reservar: passos ---------- */
+
+.reservar__passos {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.passo {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.passo__titulo {
+  font-family: var(--titulo);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
+  padding: 0;
+}
+
+.opcoes {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+}
+
+.opcoes--linha {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.opcao {
+  border: var(--borda);
+  border-radius: var(--raio);
+  padding: 0.6rem 0.8rem;
+  display: grid;
+  gap: 0.15rem;
+  cursor: pointer;
+  min-height: 2.75rem;
+  align-content: center;
+}
+
+.opcao:hover {
+  background: var(--sob-o-mouse);
+}
+
+.opcao__nome {
+  font-weight: 600;
+}
+
+.opcao--escolhida,
+.opcao--escolhida:hover {
+  background: var(--tinta);
+  color: var(--papel);
+}
+
+.opcao--escolhida .miudo {
+  color: var(--papel);
+}
+
+/* O radio fica escondido (so-leitor): o foco aparece na caixa inteira */
+.opcao:has(input:focus-visible),
+.dia:has(input:focus-visible),
+.horario:has(input:focus-visible) {
+  outline: 2px solid var(--tinta);
+  outline-offset: 3px;
+}
+
+/* ---------- Dias ---------- */
+
+.dias {
+  display: flex;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+
+.dias__mes {
+  margin: 0 0 0.35rem;
+}
+
+.dias__seta {
+  padding: 0;
+  min-width: 1.75rem;
+  font-size: 1.2rem;
+}
+
+.dias__lista {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.dia {
+  border: var(--borda);
+  border-radius: var(--raio);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0;
+  cursor: pointer;
+  min-height: 3.25rem;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+.dia:hover {
+  background: var(--sob-o-mouse);
+}
+
+.dia__numero {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.dia__semana {
+  font-family: var(--titulo);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  font-size: 0.72rem;
+}
+
+.dia--escolhido,
+.dia--escolhido:hover {
+  background: var(--tinta);
+  color: var(--papel);
+}
+
+/* ---------- Cartão do dia (topo do cartão de ponto + grade) ---------- */
+
+.cartao-do-dia {
+  padding: 0;
+}
+
+.cartao-do-dia__topo {
+  border-bottom: var(--borda);
+  padding: 0.9rem 1rem 0.75rem;
+}
+
+.cartao-do-dia__negocio,
+.cartao-de-ponto__negocio {
+  font-family: var(--titulo);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.cartao-do-dia__data,
+.cartao-de-ponto__data {
+  font-weight: 600;
+  font-size: 1.05rem;
+  margin: 0.15rem 0 0.35rem;
+  text-transform: capitalize;
+}
+
+.cartao-do-dia__ficha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 1rem;
+  margin: 0;
+}
+
+.cartao-do-dia__vazio {
+  padding: 1rem;
+  margin: 0;
+  color: var(--tinta-fraca);
+}
+
+.cartao-do-dia .alerta {
+  margin: 1rem;
+}
+
+.cartao-do-dia .carregando {
+  padding: 1rem;
+  margin: 0;
+}
+
+/* ---------- Grade de horários ---------- */
+
+.grade {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.grade__colunas {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.horario {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  min-height: 3rem;
+  border-bottom: var(--tracejado);
+  position: relative;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.horario:nth-child(odd) {
+  border-right: var(--tracejado);
+}
+
+.horario__furo {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  border: var(--borda);
+  border-radius: 50%;
+}
+
+.horario__hora {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.horario--livre:hover {
+  background: var(--sob-o-mouse);
+}
+
+.horario--ocupado {
+  cursor: not-allowed;
+  color: var(--tinta-fraca);
+}
+
+.horario--ocupado .horario__furo {
+  background: var(--tinta);
+  border-color: var(--tinta);
+}
+
+/* Carimbado por cima do canto direito, como no papel: não empurra a hora */
+.horario__carimbo {
+  position: absolute;
+  right: 0.6rem;
+  top: 50%;
+  font-size: 0.7rem;
+  transform: translateY(-50%) rotate(-8deg);
+}
+
+@media (max-width: 26rem) {
+  .horario {
+    padding: 0.6rem 0.75rem;
+    gap: 0.5rem;
+  }
+
+  .horario__hora {
+    font-size: 1rem;
+  }
+
+  .horario__carimbo {
+    right: 0.4rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+  }
+}
+
+.horario--escolhido,
+.horario--escolhido:hover {
+  background: var(--tinta);
+  color: var(--papel);
+}
+
+.horario--escolhido .horario__furo {
+  border-color: var(--papel);
+  background: var(--papel);
+}
+
+/* Pego por outra pessoa agora mesmo: contorno vermelho por ~1 s (a classe sai sozinha) */
+.horario--tomado {
+  outline-color: var(--carimbo);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .horario--tomado {
+    animation: contorno-some 1s ease-out forwards;
+  }
+}
+
+@keyframes contorno-some {
+  from {
+    outline-color: var(--carimbo);
+  }
+  to {
+    outline-color: transparent;
+  }
+}
+
+/* ---------- Confirmar ---------- */
+
+.confirmar {
+  border-top: var(--borda);
+  padding-top: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.confirmar__resumo {
+  margin: 0;
+}
+
+.confirmar .botao {
+  justify-self: start;
+}
+
+@media (max-width: 30rem) {
+  .confirmar {
+    position: sticky;
+    bottom: 0;
+    background: var(--papel);
+    padding-bottom: 0.75rem;
+  }
+
+  .confirmar .botao {
+    justify-self: stretch;
+  }
+}
+
+.acoes {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* ---------- Cartão de ponto (reserva) ---------- */
+
+.cartao-de-ponto {
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.cartao-de-ponto__topo {
+  border-bottom: var(--borda);
+  padding: 0.9rem 1rem 0.75rem;
+  position: relative;
+}
+
+/* O selo ou o carimbo ficam no canto: o texto não passa por baixo deles */
+.cartao-de-ponto__topo:has(.selo, .cartao-de-ponto__carimbo) {
+  padding-right: 8rem;
+}
+
+.cartao-de-ponto__corpo {
+  padding: 0.75rem 1rem;
+  position: relative;
+}
+
+.cartao-de-ponto__hora {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 2rem;
+  line-height: 1.1;
+  margin: 0 0 0.5rem;
+}
+
+.ficha {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9rem), 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.ficha dt {
+  font-size: 0.75rem;
+  color: var(--tinta-fraca);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ficha dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.cartao-de-ponto__carimbo {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  font-size: 1rem;
+  transform: rotate(-10deg);
+}
+
+.cartao-de-ponto--cancelada .cartao-de-ponto__hora {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.cartao-de-ponto__acoes,
+.cartao-de-ponto > .acoes {
+  border-top: var(--tracejado);
+  padding: 0.75rem 1rem;
+}
+
+.cartao-de-ponto__acoes .alerta {
+  margin-bottom: 0.5rem;
+}
+
+/* O "ponto batido" da confirmação: selo em tinta (o vermelho é só para ocupado e erro) */
+.selo {
+  position: absolute;
+  top: 0.9rem;
+  right: 1rem;
+  font-family: var(--titulo);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  border: 3px double var(--tinta);
+  padding: 0.1rem 0.5rem;
+  transform: rotate(-8deg);
+}
+
+.confirmar-cancelamento p {
+  margin-bottom: 0.5rem;
+}
+
+/* ---------- Minhas reservas ---------- */
+
+.minhas__colunas {
+  display: grid;
+  gap: 2rem;
+}
+
+@media (min-width: 56rem) {
+  .minhas__colunas {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.abas {
+  display: flex;
+  border-bottom: var(--borda);
+  margin-bottom: 1rem;
+}
+
+.aba {
+  font-family: var(--titulo);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: none;
+  color: var(--tinta);
+  border: var(--borda);
+  border-bottom: 0;
+  border-radius: var(--raio) var(--raio) 0 0;
+  padding: 0.5rem 1rem;
+  min-height: 2.75rem;
+  cursor: pointer;
+  margin-right: -2px;
+}
+
+.aba[aria-selected='true'] {
+  background: var(--tinta);
+  color: var(--papel);
+}
+
+.lista-de-cartoes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.avisos {
+  border: var(--borda);
+  border-radius: var(--raio);
+  padding: 1rem;
+}
+
+.avisos h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.avisos__contagem {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  background: var(--tinta);
+  color: var(--papel);
+  padding: 0.05rem 0.4rem;
+}
+
+.aviso-item {
+  padding-left: 0.75rem;
+  border-left: 4px solid transparent;
+}
+
+.aviso-item--novo {
+  border-left-color: var(--tinta);
+  background: var(--sob-o-mouse);
+}
+
+.aviso-item--novo .aviso-item__texto {
+  font-weight: 600;
+}
+
+.aviso-item p {
+  margin-bottom: 0.25rem;
+}
