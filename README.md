@@ -7,7 +7,10 @@
 Uma API de agendamento para negócios que atendem com hora marcada (barbearia, quadra, estúdio):
 o dono cadastra profissionais, serviços e horários; o cliente escolhe um horário livre e reserva.
 O ponto central é que **dois clientes nunca ficam com o mesmo horário**, nem clicando no mesmo
-milissegundo. **Em construção:** as fases abaixo mostram o que já está pronto.
+milissegundo.
+
+**No ar (demonstração):** https://cadence.159-112-189-95.sslip.io: entre como cliente ou como
+dono da Barbearia Exemplo, sem cadastro; os dados voltam ao original a cada hora.
 
 ![Cadence em uso: à esquerda, um cliente escolhe Corte com a Camila na sexta e confirma 10:30; à direita, a agenda do dono recebe a reserva na hora, destacada como "Nova", sem recarregar](docs/demo.gif)
 
@@ -23,7 +26,7 @@ milissegundo. **Em construção:** as fases abaixo mostram o que já está pront
 - [x] **6. Lembretes:** fila (BullMQ + Redis) com o lembrete agendado para 24 h antes; cancelar tira o lembrete da fila; sem Redis, as reservas seguem e uma conferência periódica envia o que a fila perdeu
 - [x] **7. Tempo real:** WebSocket: quem está olhando o dia vê o horário sumir quando outra pessoa reserva, e o cliente recebe as próprias reservas e lembretes na hora, sem recarregar
 - [x] **8. Interface:** React + Vite (renovação do token em fila única entre as abas), com identidade visual própria ("Relógio de ponto", ver [docs/identidade.md](docs/identidade.md)); tela do cliente, painel do dono e um negócio de demonstração
-- [ ] **9. Publicação:** Docker Compose numa VM da Oracle, com HTTPS e vigiado pelo [Vigil](https://github.com/Lakes777/vigil)
+- [x] **9. Publicação:** Docker Compose numa VM ARM da Oracle, ao lado do Beacon e do Pursuit (Postgres e Caddy deles, Redis próprio), com HTTPS, a API servindo as telas no mesmo endereço e vigiado pelo [Vigil](https://github.com/Lakes777/vigil); só a demonstração vai ao ar
 
 ## Rodando
 
@@ -71,6 +74,7 @@ Lida do ambiente e validada na partida: se algo estiver errado, a API não sobe 
 | `CONFIANCA_NO_PROXY` | `loopback` | de quem aceitar o `X-Forwarded-For` (o IP real usado no limite e nos logs): `loopback`, `uniquelocal`, IPs ou sub-redes separados por vírgula. Com o Caddy em container, use a sub-rede do Docker; sem isso, todo mundo divide o mesmo limite |
 | `CADENCE_DEMO` | `false` | `true` liga a [demonstração](#demonstração): entrar como visitante, cadastro fechado e `npm run semear-demo` |
 | `VISITANTES_POR_HORA` | `300` | só na demonstração: contas de visitante cliente criadas por hora, somando todos os IPs |
+| `PASTA_DAS_TELAS` | (vazia) | pasta do build das telas (`web/dist`); com ela, a API serve as telas no mesmo endereço (a imagem Docker já vem com `/app/telas`). Vazia, só a API: no desenvolvimento quem serve as telas é o Vite |
 
 ## Contas
 
@@ -342,8 +346,8 @@ O servidor manda:
   mensagens a cada 10 s (`1008`), e quem não lê o que chega (mais de 1 MB parado) é derrubado.
   Um erro inesperado ao tratar uma mensagem derruba só aquela conexão. Quem pede o upgrade e
   corta a conexão (RST) antes de o WebSocket abrir também não derruba o processo: há teste para
-  isso, porque sem o tratamento a API caía. Ainda falta, para depois do deploy: o limite conta
-  cada IPv6 inteiro, então quem tem um bloco `/64` escapa dele, e não há limite de conexões
+  isso, porque sem o tratamento a API caía. O limite conta cada IPv6 inteiro (quem tem um bloco
+  `/64` escaparia dele), mas a VM de publicação só tem IPv4. Ainda falta um limite de conexões
   abertas por minuto.
 - **Conexões mortas:** um ping a cada 30 s derruba quem não respondeu ao anterior (Wi-Fi caído,
   celular dormindo).
@@ -505,8 +509,33 @@ reposição).
 - A semeadura roda em outro processo, então não avisa pelo WebSocket: quem está com a página
   aberta vê a barbearia nova ao recarregar (ou na próxima busca).
 
-**Fica para a fase 9 (deploy):** rodar a reposição de hora em hora (um timer do systemd ou
-cron na VM chamando o comando acima).
+Na VM, a reposição roda de hora em hora pelo cron (`~/repor-demos.sh`, junto com as demonstrações
+do Beacon e do Pursuit), com `node dist/demo/semear.js` dentro do contêiner.
+
+## Publicação
+
+Roda numa VM ARM grátis da Oracle Cloud (1 núcleo Ampere, 6 GB), a mesma do
+[Beacon](https://github.com/Lakes777/beacon) e do [Pursuit](https://github.com/Lakes777/pursuit). **Só a
+demonstração vai ao ar** (`CADENCE_DEMO=true`): uma instância com cadastro aberto ficaria vazia; se um
+dia precisar, é a mesma imagem com outro `.env`.
+
+| Peça | Como |
+|---|---|
+| Imagem | Três etapas (`Dockerfile`): compila a API e as telas, separa as dependências de produção e leva tudo para um `node:24-alpine` sem root (~160 MB). **Montada no PC x86 para ARM sem emulação**: as duas primeiras etapas rodam na arquitetura do PC, porque o resultado é JavaScript; o único binário nativo (o `msgpackr` do BullMQ) vem com `npm ci --cpu=arm64 --libc=musl` |
+| Um endereço só | A API serve o build das telas (`PASTA_DAS_TELAS`): `/assets` com cache eterno (os nomes têm hash), o `index.html` sem cache e para qualquer rota de navegador fora da API; quem não pede HTML recebe o `404` em JSON |
+| Banco | No Postgres 17 do Beacon, com banco e usuário `cadence_demo` próprios (`revoke connect ... from public`). Os testes de ponta a ponta rodam no Postgres 17, o mesmo da VM |
+| Migrações | Rodam do PC, pelo Prisma do projeto, num **túnel SSH** até o Postgres do Beacon (o `publicar.sh` abre e fecha): a imagem não precisa do Prisma CLI nem do motor nativo dele. Se falharem, nada é publicado |
+| Fila | **Redis próprio**, só na rede do Cadence: o do Beacon é cache (`allkeys-lru`, sem disco) e apagaria lembretes agendados; o BullMQ exige `noeviction`. Este tem `appendonly` e volume |
+| HTTPS | O Caddy do Beacon importa `~/beacon/sites/*.caddy`; o `publicar.sh` põe lá o `cadence.caddy` (HSTS, `nosniff` e uma CSP só com o próprio endereço, `wss://` incluído) e recarrega o Caddy. O WebSocket passa sem configuração extra |
+| IP real | `CONFIANCA_NO_PROXY` = a rede interna do Beacon (`172.30.0.0/24`): só dela o `X-Forwarded-For` vale para os limites |
+| Memória | API limitada a 256 MB (`--max-old-space-size=160`), Redis a 64 MB; medido: ~82 MB e ~7 MB |
+| Saúde | Healthcheck do Docker com o `fetch` do próprio Node em `/saude` (banco e fila) e o Vigil confere a cada 5 min |
+| Demonstração | Reposta de hora em hora pelo cron da VM e a cada publicação. Sem backup: os dados são de exemplo e se refazem sozinhos |
+
+```bash
+deploy/preparar-vm.sh    # uma vez: banco, usuário, .env (senhas geradas na VM) e a linha no cron das demos
+deploy/publicar.sh       # imagem ARM (exige git limpo; leva o commit), migrações, envio pela SSH, reinício
+```
 
 ## Saúde
 
@@ -524,7 +553,7 @@ Todo pedido ganha um `X-Request-Id` na resposta e nos logs; se quem chamou já m
 
 ```bash
 npm test            # unidade (sem banco)
-npm run test:e2e    # ponta a ponta: o Testcontainers sobe um Postgres 18 e um Redis 8 e aplica as migrações
+npm run test:e2e    # ponta a ponta: o Testcontainers sobe um Postgres 17 (o mesmo da VM) e um Redis 8 e aplica as migrações
 ```
 
 Na interface (`cd web`): `npm test` (Vitest + Testing Library, com a API e o WebSocket falsos de
