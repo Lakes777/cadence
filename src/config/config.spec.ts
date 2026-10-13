@@ -26,7 +26,19 @@ describe('lerConfig', () => {
       PEDIDOS_PUBLICOS_POR_MINUTO: 120,
       CONEXOES_POR_IP: 20,
       CONFIANCA_NO_PROXY: 'loopback',
+      CADENCE_DEMO: false,
     });
+  });
+
+  it.each([
+    ['true', true],
+    ['false', false],
+    ['1', true],
+    ['0', false],
+  ])('lê CADENCE_DEMO=%s como %s', (valor, esperado) => {
+    expect(lerConfig({ ...BASE, CADENCE_DEMO: valor }).CADENCE_DEMO).toBe(
+      esperado,
+    );
   });
 
   it('converte a porta de texto para número', () => {
@@ -97,6 +109,7 @@ describe('lerConfig', () => {
     ['confiar em qualquer proxy', { ...BASE, CONFIANCA_NO_PROXY: 'true' }],
     ['número de saltos do proxy', { ...BASE, CONFIANCA_NO_PROXY: '1' }],
     ['proxy com caractere estranho', { ...BASE, CONFIANCA_NO_PROXY: 'a;b' }],
+    ['demonstração com valor estranho', { ...BASE, CADENCE_DEMO: 'talvez' }],
   ])('recusa %s', (_caso, env) => {
     expect(() => lerConfig(env)).toThrow(/^Configuração inválida/);
   });

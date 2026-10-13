@@ -1,10 +1,14 @@
 import {
   ConflictException,
+  ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../banco/prisma.service.js';
+import { CONFIG, type Config } from '../config/config.js';
+import { SLUG_DA_DEMO } from '../demo/demo.js';
 import { TempoReal } from '../tempo-real/tempo-real.js';
 import { Prisma, type Negocio } from '../generated/prisma/client.js';
 import type { MudancaNegocio, NovoNegocio } from './catalogo.dto.js';
@@ -16,12 +20,15 @@ import {
 import { gerarSlug } from './slug.js';
 
 const SLUG_EM_USO = 'Este endereço já está em uso; escolha outro';
+const FIXO_NA_DEMO =
+  'Na demonstração, o endereço e o fuso da Barbearia Exemplo não mudam (os outros visitantes usam o mesmo negócio)';
 
 @Injectable()
 export class NegociosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tempoReal: TempoReal,
+    @Inject(CONFIG) private readonly config: Config,
   ) {}
 
   async criar(donoId: string, dados: NovoNegocio): Promise<NegocioResposta> {
@@ -58,6 +65,17 @@ export class NegociosService {
     dados: MudancaNegocio,
   ): Promise<NegocioResposta> {
     const antes = await this.doDono(negocioId, donoId);
+    // O dono da demonstração é compartilhado: trocar o endereço tiraria a vitrine do ar para
+    // todo mundo, e trocar o fuso mudaria todos os horários, até a próxima reposição. Mandar o
+    // mesmo valor (um formulário que envia tudo) passa.
+    if (
+      this.config.CADENCE_DEMO &&
+      antes.slug === SLUG_DA_DEMO &&
+      ((dados.slug !== undefined && dados.slug !== antes.slug) ||
+        (dados.fuso !== undefined && dados.fuso !== antes.fuso))
+    ) {
+      throw new ForbiddenException(FIXO_NA_DEMO);
+    }
     let negocio: Negocio;
     try {
       negocio = await this.prisma.negocio.update({

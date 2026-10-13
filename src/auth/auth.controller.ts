@@ -13,11 +13,14 @@ import { SkipThrottle, ThrottlerGuard } from '@nestjs/throttler';
 import type { CookieOptions, Request, Response } from 'express';
 import { ValidacaoZod } from '../comum/validacao-zod.pipe.js';
 import { CONFIG, type Config } from '../config/config.js';
+import { ForaDaDemoGuard, SoNaDemoGuard } from '../demo/guards.js';
 import {
   esquemaDeCadastro,
   esquemaDeLogin,
+  esquemaDeVisitante,
   type Cadastro,
   type Login,
+  type Visitante,
 } from './auth.dto.js';
 import { AuthService } from './auth.service.js';
 import { Publica, UsuarioAtual } from './decoradores.js';
@@ -54,6 +57,7 @@ export class AuthController {
 
   @Post('cadastro')
   @Publica()
+  @UseGuards(ForaDaDemoGuard)
   async cadastrar(
     @Body(new ValidacaoZod(esquemaDeCadastro)) dados: Cadastro,
     @Res({ passthrough: true }) res: Response,
@@ -69,6 +73,22 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<RespostaDeSessao> {
     return this.responder(await this.auth.entrar(dados), res);
+  }
+
+  /**
+   * Só na demonstração (404 fora dela): entra sem senha como cliente (conta nova a cada vez)
+   * ou como o dono da Barbearia Exemplo (conta compartilhada). Mesma resposta e mesmo cookie
+   * de /auth/entrar, então renovar e sair funcionam igual.
+   */
+  @Post('visitante')
+  @Publica()
+  @UseGuards(SoNaDemoGuard)
+  @HttpCode(200)
+  async visitante(
+    @Body(new ValidacaoZod(esquemaDeVisitante)) { papel }: Visitante,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<RespostaDeSessao> {
+    return this.responder(await this.auth.entrarComoVisitante(papel), res);
   }
 
   @Post('renovar')

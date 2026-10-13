@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { createHash } from 'node:crypto';
@@ -120,6 +121,11 @@ export class ReservasService {
         this.avisarMudanca(reserva.clienteId, resposta);
         return { reserva: resposta, nova: true };
       } catch (erro) {
+        // A conta (ou o catálogo) sumiu com um token de acesso ainda válido: na demonstração,
+        // a reposição apaga os visitantes. Entrar de novo resolve; sem isso, seria um 500
+        if (violou(erro, '23503')) {
+          throw new UnauthorizedException('Sessão encerrada; entre de novo');
+        }
         if (!violou(erro, '23P01') && !violou(erro, '23505')) throw erro;
         // O mesmo pedido (mesma chave) chegou duas vezes ao mesmo tempo: a cópia que perdeu
         // esbarra na chave única ou, antes dela, na própria reserva que a outra acabou de criar
@@ -296,7 +302,7 @@ function hashDo(slug: string, pedido: NovaReserva): string {
     .digest('base64url');
 }
 
-/** O erro veio do Postgres com este código? (23P01 = exclusão, 23505 = única) */
+/** O erro veio do Postgres com este código? (23P01 = exclusão, 23505 = única, 23503 = chave estrangeira) */
 function violou(erro: unknown, codigo: string): boolean {
   if (!(erro instanceof Prisma.PrismaClientKnownRequestError)) return false;
   const meta = erro.meta as

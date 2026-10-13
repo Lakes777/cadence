@@ -15,6 +15,7 @@
     "start:prod": "node dist/main",
     "migrar": "node --env-file=.env node_modules/prisma/build/index.js migrate deploy",
     "migrar:criar": "node --env-file=.env node_modules/prisma/build/index.js migrate dev --create-only",
+    "semear-demo": "node --env-file-if-exists=.env dist/demo/semear.js",
     "lint": "oxlint --type-aware --deny-warnings src/ test/",
     "tipos": "tsc --noEmit",
     "test": "vitest run",

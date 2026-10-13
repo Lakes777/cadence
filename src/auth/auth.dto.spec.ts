@@ -1,4 +1,8 @@
-import { esquemaDeCadastro, esquemaDeLogin } from './auth.dto.js';
+import {
+  esquemaDeCadastro,
+  esquemaDeLogin,
+  esquemaDeVisitante,
+} from './auth.dto.js';
 
 const valido = {
   nome: 'Chris Cornell',
@@ -29,6 +33,11 @@ describe('esquemaDeCadastro', () => {
     ['senha curta', { senha: '1234567' }, 'senha'],
     ['senha gigante', { senha: 'a'.repeat(129) }, 'senha'],
     ['papel inventado', { papel: 'admin' }, 'papel'],
+    [
+      'e-mail do domínio da demonstração',
+      { email: 'Alguem@Demo.Cadence.Invalid' },
+      'email',
+    ],
   ])('recusa %s', (_caso, mudanca, campo) => {
     const resultado = esquemaDeCadastro.safeParse({ ...valido, ...mudanca });
     expect(resultado.success).toBe(false);
@@ -52,5 +61,15 @@ describe('esquemaDeLogin', () => {
     expect(
       esquemaDeLogin.safeParse({ email: 'a@b.com', senha: '' }).success,
     ).toBe(false);
+  });
+});
+
+describe('esquemaDeVisitante', () => {
+  it.each(['cliente', 'dono'])('aceita o papel %s', (papel) => {
+    expect(esquemaDeVisitante.parse({ papel })).toEqual({ papel });
+  });
+
+  it.each([{}, { papel: 'admin' }])('recusa %o', (corpo) => {
+    expect(esquemaDeVisitante.safeParse(corpo).success).toBe(false);
   });
 });

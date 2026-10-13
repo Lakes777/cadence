@@ -27,6 +27,9 @@ export async function criarApp(
     // Alto para os testes não esbarrarem no limite; o teste do limite sobe o próprio app
     PEDIDOS_DE_CONTA_POR_MINUTO: '1000',
     PEDIDOS_PUBLICOS_POR_MINUTO: '10000',
+    // process.env fica com o que a aplicação anterior pôs: sem isto, a demonstração ligada
+    // num arquivo vazaria para os seguintes
+    CADENCE_DEMO: 'false',
     ...env,
   });
   const modulo = await ajustar(

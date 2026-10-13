@@ -54,6 +54,7 @@ Lida do ambiente e validada na partida: se algo estiver errado, a API não sobe 
 | `PEDIDOS_DE_CONTA_POR_MINUTO` | `10` | pedidos por IP a cada minuto em **cada** rota de conta (cadastro, entrar, renovar); o excesso leva `429` |
 | `CONEXOES_POR_IP` | `20` | conexões de WebSocket abertas ao mesmo tempo por IP (cada aba é uma); o excesso leva `429` |
 | `CONFIANCA_NO_PROXY` | `loopback` | de quem aceitar o `X-Forwarded-For` (o IP real usado no limite e nos logs): `loopback`, `uniquelocal`, IPs ou sub-redes separados por vírgula. Com o Caddy em container, use a sub-rede do Docker; sem isso, todo mundo divide o mesmo limite |
+| `CADENCE_DEMO` | `false` | `true` liga a [demonstração](#demonstração): entrar como visitante, cadastro fechado e `npm run semear-demo` |
 
 ## Contas
 
@@ -329,6 +330,74 @@ O servidor manda:
 - **Uma instância só:** quem está conectado fica na memória do processo. Com duas instâncias da
   API, os eventos precisariam passar por um canal comum (por exemplo, o pub/sub do Redis que a
   fila já usa).
+
+## Demonstração
+
+Com `CADENCE_DEMO=true`, a API vira uma vitrine para quem quer experimentar sem criar conta: a
+**Barbearia Exemplo** (`/negocios/barbearia-exemplo`), com três profissionais, quatro serviços, um
+bloqueio e a agenda da semana já parcialmente ocupada por clientes fictícios. Quem visita entra
+como cliente (e reserva) ou como dono (e mexe no painel) com um clique.
+
+| Rota | O que faz |
+|---|---|
+| `GET /demo` | `{"demo": true, "negocio": "barbearia-exemplo"}` com a demonstração ligada; `{"demo": false, "negocio": null}` desligada (a interface decide se mostra os botões de visitante) |
+| `POST /auth/visitante` | `{"papel": "cliente" \| "dono"}` → `200` com a mesma resposta e o mesmo cookie de `/auth/entrar` (renovar e sair funcionam igual); `404` com a demonstração desligada |
+
+- **Cliente:** cada clique cria uma conta nova ("Visitante", `visitante-<uuid>@demo.cadence.invalid`).
+  Assim cada visitante vê só as próprias reservas, e ninguém cancela a reserva de outro.
+- **Dono:** todos entram na mesma conta, a do dono da Barbearia Exemplo. Pode mexer em quase tudo
+  (profissionais, serviços, horários, bloqueios, cancelar reservas, até o nome), menos o
+  **endereço e o fuso** da barbearia (`403`): trocar o endereço tiraria a vitrine do ar para
+  os outros visitantes, e trocar o fuso mudaria todos os horários, até a próxima reposição.
+- Antes da primeira semeadura, entrar como dono responde `503`.
+
+**Contas da demonstração:** todas usam e-mails em `@demo.cadence.invalid` (o `.invalid` é reservado
+e nunca existe de verdade) e uma senha que nenhuma senha confere: só entram por
+`/auth/visitante`. O cadastro recusa esse domínio sempre, com ou sem demonstração.
+
+**Por que o cadastro fecha (`403`, "Na demonstração, entre como visitante."):** o dono visitante
+é compartilhado, e a agenda mostra o nome e o e-mail de quem reservou. Quem se cadastrasse com
+os dados de verdade os deixaria à vista de qualquer outro visitante. `/auth/entrar` com senha
+continua funcionando.
+
+**Reposição (`npm run semear-demo`).** Roda contra o build, sem subir a API (na VM:
+`docker compose exec -T api npm run semear-demo`), numa transação só (quem estiver olhando vê a
+barbearia antiga ou a nova, nunca pela metade; duas reposições ao mesmo tempo entram em fila):
+
+1. Apaga as contas de cliente da demonstração (visitantes e fictícias), com as reservas, os
+   avisos e os tokens de renovação delas, e os negócios do dono (a barbearia e qualquer outro
+   que um visitante tenha criado).
+2. Recria a Barbearia Exemplo do zero (fuso `America/Sao_Paulo`): Rafael, Camila e Diego,
+   Corte (30 min, R$ 45), Barba (30 min, R$ 35), Corte e barba (60 min, R$ 70) e Acabamento
+   (15 min, R$ 15), horário de segunda a sábado com almoço, e uma consulta médica do Diego
+   daqui a 3 dias à tarde.
+3. Cria reservas de oito clientes fictícios nos próximos 7 dias a partir de agora, dentro do
+   expediente, fora do bloqueio e sem sobrepor (a restrição de exclusão recusaria). Cada
+   horário é escolhido por um hash da data e da hora, não por sorteio: rodar duas vezes seguidas
+   dá o mesmo estado (há teste), e com o tempo só somem as que já começaram.
+
+**Proteção:** a semeadura apaga dados, então recusa (sai com `1` e diz por quê) se
+`CADENCE_DEMO` não for `true` **e** se o banco tiver qualquer conta fora de
+`@demo.cadence.invalid`. Ligar a variável por engano num banco de verdade não apaga nada.
+
+**O que acontece com quem está dentro na hora da reposição:**
+
+- **Todo mundo entra de novo.** As contas de cliente somem (com os tokens), e os tokens de
+  renovação do dono são apagados. A conta do dono continua a mesma (mesmo id), então o token de
+  acesso de quem está no painel segue valendo até vencer (no máximo 15 min), já apontando para
+  a barbearia nova. O id da barbearia muda: a interface busca `GET /negocios` de novo se um id
+  antigo responder `404`.
+- Um visitante cliente apagado que tenta reservar com o token antigo recebe `401` ("entre de
+  novo"), não `500`: a reserva traduz a chave estrangeira quebrada.
+- **Lembretes na fila:** a reposição não mexe no Redis, e não precisa. A tarefa tem o id da
+  reserva, e o envio procura a reserva no banco antes de gravar o aviso: reserva apagada é
+  `dispensado`. As tarefas órfãs saem da fila na hora delas (no máximo 7 dias). As reservas de
+  exemplo nascem sem lembrete (`lembrete_em` vazio): ninguém lê os avisos das contas fictícias.
+- A semeadura roda em outro processo, então não avisa pelo WebSocket: quem está com a página
+  aberta vê a barbearia nova ao recarregar (ou na próxima busca).
+
+**Fica para a fase 9 (deploy):** rodar a reposição de hora em hora (um timer do systemd ou
+cron na VM chamando o comando acima).
 
 ## Saúde
 
