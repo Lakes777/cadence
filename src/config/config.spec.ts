@@ -27,6 +27,7 @@ describe('lerConfig', () => {
       CONEXOES_POR_IP: 20,
       CONFIANCA_NO_PROXY: 'loopback',
       CADENCE_DEMO: false,
+      VISITANTES_POR_HORA: 300,
     });
   });
 

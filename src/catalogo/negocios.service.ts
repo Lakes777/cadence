@@ -21,7 +21,9 @@ import { gerarSlug } from './slug.js';
 
 const SLUG_EM_USO = 'Este endereço já está em uso; escolha outro';
 const FIXO_NA_DEMO =
-  'Na demonstração, o endereço e o fuso da Barbearia Exemplo não mudam (os outros visitantes usam o mesmo negócio)';
+  'Na demonstração, o nome, o endereço e o fuso da Barbearia Exemplo não mudam (os outros visitantes usam o mesmo negócio)';
+const SEM_NEGOCIO_NOVO_NA_DEMO =
+  'Na demonstração, use a Barbearia Exemplo (negócio novo teria uma página pública com o nome que o visitante quisesse)';
 
 @Injectable()
 export class NegociosService {
@@ -32,6 +34,11 @@ export class NegociosService {
   ) {}
 
   async criar(donoId: string, dados: NovoNegocio): Promise<NegocioResposta> {
+    // O dono da demonstração é compartilhado: um negócio novo ficaria no ar, com nome e
+    // endereço à escolha de qualquer visitante, até a próxima reposição
+    if (this.config.CADENCE_DEMO) {
+      throw new ForbiddenException(SEM_NEGOCIO_NOVO_NA_DEMO);
+    }
     if (dados.slug) {
       return negocioResposta(await this.gravar(donoId, dados, dados.slug));
     }
@@ -66,13 +73,14 @@ export class NegociosService {
   ): Promise<NegocioResposta> {
     const antes = await this.doDono(negocioId, donoId);
     // O dono da demonstração é compartilhado: trocar o endereço tiraria a vitrine do ar para
-    // todo mundo, e trocar o fuso mudaria todos os horários, até a próxima reposição. Mandar o
-    // mesmo valor (um formulário que envia tudo) passa.
+    // todo mundo, trocar o fuso mudaria todos os horários e o nome aparece para todos, até a
+    // próxima reposição. Mandar o mesmo valor (um formulário que envia tudo) passa.
+    const muda = (campo: 'nome' | 'slug' | 'fuso') =>
+      dados[campo] !== undefined && dados[campo] !== antes[campo];
     if (
       this.config.CADENCE_DEMO &&
       antes.slug === SLUG_DA_DEMO &&
-      ((dados.slug !== undefined && dados.slug !== antes.slug) ||
-        (dados.fuso !== undefined && dados.fuso !== antes.fuso))
+      (muda('nome') || muda('slug') || muda('fuso'))
     ) {
       throw new ForbiddenException(FIXO_NA_DEMO);
     }

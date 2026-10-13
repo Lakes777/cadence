@@ -55,6 +55,7 @@ Lida do ambiente e validada na partida: se algo estiver errado, a API não sobe 
 | `CONEXOES_POR_IP` | `20` | conexões de WebSocket abertas ao mesmo tempo por IP (cada aba é uma); o excesso leva `429` |
 | `CONFIANCA_NO_PROXY` | `loopback` | de quem aceitar o `X-Forwarded-For` (o IP real usado no limite e nos logs): `loopback`, `uniquelocal`, IPs ou sub-redes separados por vírgula. Com o Caddy em container, use a sub-rede do Docker; sem isso, todo mundo divide o mesmo limite |
 | `CADENCE_DEMO` | `false` | `true` liga a [demonstração](#demonstração): entrar como visitante, cadastro fechado e `npm run semear-demo` |
+| `VISITANTES_POR_HORA` | `300` | só na demonstração: contas de visitante cliente criadas por hora, somando todos os IPs |
 
 ## Contas
 
@@ -355,10 +356,23 @@ como cliente (e reserva) ou como dono (e mexe no painel) com um clique.
 - **Cliente:** cada clique cria uma conta nova ("Visitante", `visitante-<uuid>@demo.cadence.invalid`).
   Assim cada visitante vê só as próprias reservas, e ninguém cancela a reserva de outro.
 - **Dono:** todos entram na mesma conta, a do dono da Barbearia Exemplo. Pode mexer em quase tudo
-  (profissionais, serviços, horários, bloqueios, cancelar reservas, até o nome), menos o
-  **endereço e o fuso** da barbearia (`403`): trocar o endereço tiraria a vitrine do ar para
-  os outros visitantes, e trocar o fuso mudaria todos os horários, até a próxima reposição.
-- Antes da primeira semeadura, entrar como dono responde `503`.
+  (profissionais, serviços, horários, bloqueios, cancelar reservas), menos o **nome, o endereço
+  e o fuso** da barbearia (`403`; mandar o mesmo valor passa): trocar o endereço tiraria a
+  vitrine do ar para os outros visitantes, o fuso mudaria todos os horários e o nome aparece
+  para todos, até a próxima reposição. Também não cria **negócio novo** (`403`): ele ganharia
+  uma página pública com o nome e o endereço que o visitante quisesse. Nomes de profissionais e
+  serviços continuam editáveis (o painel precisa disso); o estrago dura no máximo uma hora.
+- Antes da primeira semeadura, entrar como dono responde `503` (e também se o dono da
+  `barbearia-exemplo` não for uma conta da demonstração: nunca entregar a conta de alguém).
+
+**Limites contra abuso** (um script poderia encher a agenda ou o banco entre uma reposição e
+outra):
+
+- Cada visitante tem até **3 reservas futuras** (`422` depois disso; cancelar libera). Dois
+  pedidos no mesmo instante podem passar um a mais; o teto continua pequeno.
+- No máximo `VISITANTES_POR_HORA` (padrão 300) contas de visitante cliente por hora, **somando
+  todos os IPs** (`503` "a demonstração está cheia"): o limite por IP não segura quem troca de
+  IP. Entrar como dono não cria conta e não conta.
 
 **Contas da demonstração:** todas usam e-mails em `@demo.cadence.invalid` (o `.invalid` é reservado
 e nunca existe de verdade) e uma senha que nenhuma senha confere: só entram por
@@ -388,6 +402,12 @@ barbearia antiga ou a nova, nunca pela metade; duas reposições ao mesmo tempo 
 **Proteção:** a semeadura apaga dados, então recusa (sai com `1` e diz por quê) se
 `CADENCE_DEMO` não for `true` **e** se o banco tiver qualquer conta fora de
 `@demo.cadence.invalid`. Ligar a variável por engano num banco de verdade não apaga nada.
+A **API também não sobe** com `CADENCE_DEMO=true` num banco com contas de verdade (a partida
+falha e diz por quê): o cadastro fecharia e qualquer um viraria visitante nos negócios reais.
+
+Uma reserva sendo gravada no instante da reposição não a quebra: o `DELETE` do negócio espera
+a reserva terminar e a leva junto na cascata (há teste que segura a reserva aberta no meio da
+reposição).
 
 **O que acontece com quem está dentro na hora da reposição:**
 
@@ -397,7 +417,8 @@ barbearia antiga ou a nova, nunca pela metade; duas reposições ao mesmo tempo 
   a barbearia nova. O id da barbearia muda: a interface busca `GET /negocios` de novo se um id
   antigo responder `404`.
 - Um visitante cliente apagado que tenta reservar com o token antigo recebe `401` ("entre de
-  novo"), não `500`: a reserva traduz a chave estrangeira quebrada.
+  novo"), não `500`: quando a reserva esbarra numa chave estrangeira, ela confere se a conta
+  ainda existe (outra chave quebrada continua sendo erro).
 - **Lembretes na fila:** a reposição não mexe no Redis, e não precisa. A tarefa tem o id da
   reserva, e o envio procura a reserva no banco antes de gravar o aviso: reserva apagada é
   `dispensado`. As tarefas órfãs saem da fila na hora delas (no máximo 7 dias). As reservas de

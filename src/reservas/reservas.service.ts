@@ -12,6 +12,8 @@ import { PrismaService } from '../banco/prisma.service.js';
 import { NegociosService } from '../catalogo/negocios.service.js';
 import type { Periodo } from '../catalogo/catalogo.dto.js';
 import { RELOGIO, type Relogio } from '../comum/relogio.js';
+import { CONFIG, type Config } from '../config/config.js';
+import { RESERVAS_POR_VISITANTE } from '../demo/demo.js';
 import { DisponibilidadeService } from '../disponibilidade/disponibilidade.service.js';
 import { dataLocal } from '../disponibilidade/fuso.js';
 import { Prisma } from '../generated/prisma/client.js';
@@ -57,6 +59,7 @@ export class ReservasService {
     private readonly fila: FilaDeLembretes,
     private readonly tempoReal: TempoReal,
     @Inject(RELOGIO) private readonly relogio: Relogio,
+    @Inject(CONFIG) private readonly config: Config,
   ) {}
 
   /**
@@ -78,6 +81,7 @@ export class ReservasService {
     const hashDoPedido = hashDo(slug, pedido);
     const repetida = await this.pelaChave(clienteId, chave, hashDoPedido);
     if (repetida) return { reserva: repetida, nova: false };
+    if (this.config.CADENCE_DEMO) await this.conferirLimiteDaDemo(clienteId);
 
     const { negocio, servico } = await this.disponibilidade.negocioEServico(
       slug,
@@ -121,9 +125,13 @@ export class ReservasService {
         this.avisarMudanca(reserva.clienteId, resposta);
         return { reserva: resposta, nova: true };
       } catch (erro) {
-        // A conta (ou o catálogo) sumiu com um token de acesso ainda válido: na demonstração,
-        // a reposição apaga os visitantes. Entrar de novo resolve; sem isso, seria um 500
-        if (violou(erro, '23503')) {
+        // A conta sumiu com um token de acesso ainda válido: na demonstração, a reposição
+        // apaga os visitantes. Entrar de novo resolve; sem isso, seria um 500. Outra chave
+        // quebrada (catálogo apagado no meio) não é problema de sessão e segue como erro
+        if (
+          violou(erro, '23503') &&
+          !(await this.prisma.usuario.count({ where: { id: clienteId } }))
+        ) {
           throw new UnauthorizedException('Sessão encerrada; entre de novo');
         }
         if (!violou(erro, '23P01') && !violou(erro, '23505')) throw erro;
@@ -249,6 +257,26 @@ export class ReservasService {
       this.avisarMudanca(reserva.clienteId, resposta);
     }
     return resposta;
+  }
+
+  /**
+   * Na demonstração, cada visitante tem poucas reservas futuras: sem isso, um script com
+   * várias contas de visitante ocuparia a agenda inteira para todo mundo até a reposição.
+   * Dois pedidos ao mesmo tempo podem passar um a mais; o teto continua pequeno.
+   */
+  private async conferirLimiteDaDemo(clienteId: string): Promise<void> {
+    const futuras = await this.prisma.reserva.count({
+      where: {
+        clienteId,
+        status: 'confirmada',
+        inicio: { gt: this.relogio.agora() },
+      },
+    });
+    if (futuras >= RESERVAS_POR_VISITANTE) {
+      throw new UnprocessableEntityException(
+        `Na demonstração, cada visitante tem até ${RESERVAS_POR_VISITANTE} reservas futuras; cancele uma para reservar outra`,
+      );
+    }
   }
 
   /**

@@ -7,7 +7,11 @@ import type { App } from 'supertest/types.js';
 import { inject } from 'vitest';
 import { gerarHashDeSenha } from '../src/auth/senha.js';
 import { PrismaService } from '../src/banco/prisma.service.js';
-import { DOMINIO_DA_DEMO, SLUG_DA_DEMO } from '../src/demo/demo.js';
+import {
+  DOMINIO_DA_DEMO,
+  RESERVAS_POR_VISITANTE,
+  SLUG_DA_DEMO,
+} from '../src/demo/demo.js';
 import { CADASTRO_FECHADO_NA_DEMO } from '../src/demo/guards.js';
 import { executar, semearDemo } from '../src/demo/semeadura.js';
 import { dataLocal, textoDaData } from '../src/disponibilidade/fuso.js';
@@ -89,7 +93,17 @@ describe('demonstração', () => {
         .query({ servicoId: corte.id, data })
         .expect(200);
       if (body.horarios.length > 0) {
-        return { servicoId: corte.id, inicio: body.horarios[0].inicio };
+        const h = body.horarios[0] as {
+          inicio: string;
+          fim: string;
+          profissionalIds: string[];
+        };
+        return {
+          servicoId: corte.id,
+          inicio: h.inicio,
+          fim: h.fim,
+          profissionalId: h.profissionalIds[0],
+        };
       }
     }
     throw new Error('nenhum horário livre na semana da demonstração');
@@ -100,7 +114,8 @@ describe('demonstração', () => {
    * o servidor ao criar o pedido, e os pedidos da busca o fechariam no meio.
    */
   async function reservar(s: Sessao, status: number) {
-    const corpo = await horarioLivre();
+    const { servicoId, inicio } = await horarioLivre();
+    const corpo = { servicoId, inicio };
     return como(s)
       .post(`/negocios/${SLUG_DA_DEMO}/reservas`)
       .set('Idempotency-Key', randomUUID())
@@ -377,6 +392,7 @@ describe('demonstração', () => {
       expect(agenda.some((r) => r.cliente.nome !== 'Visitante')).toBe(true);
 
       for (const mudanca of [
+        { nome: 'Barbearia do Visitante' },
         { slug: 'outro-endereco' },
         { fuso: 'Europe/Lisbon' },
       ]) {
@@ -386,15 +402,20 @@ describe('demonstração', () => {
           .expect(403);
         expect(resposta.body.message).toMatch(/não mudam/);
       }
-      // O mesmo endereço e o mesmo fuso (formulário que manda tudo) passam; o nome muda
+      // O mesmo nome, endereço e fuso (formulário que manda tudo) passam
       await como(dono)
         .patch(`/negocios/${id}`)
         .send({
-          nome: 'Barbearia do Visitante',
+          nome: 'Barbearia Exemplo',
           slug: SLUG_DA_DEMO,
           fuso: 'America/Sao_Paulo',
         })
         .expect(200);
+      // Negócio novo teria página pública com o nome que o visitante quisesse
+      await como(dono)
+        .post('/negocios')
+        .send({ nome: 'Outra do visitante' })
+        .expect(403);
       // O resto do catálogo, sim
       await como(dono)
         .post(`/negocios/${id}/profissionais`)
@@ -409,12 +430,8 @@ describe('demonstração', () => {
       const dono = await visitante('dono');
       const [{ id }] = (await como(dono).get('/negocios').expect(200)).body;
       await como(dono)
-        .patch(`/negocios/${id}`)
-        .send({ nome: 'Mudada' })
-        .expect(200);
-      await como(dono)
-        .post('/negocios')
-        .send({ nome: 'Outra do visitante' })
+        .post(`/negocios/${id}/profissionais`)
+        .send({ nome: 'Novo Barbeiro' })
         .expect(201);
 
       const agora = new Date();
@@ -453,6 +470,125 @@ describe('demonstração', () => {
       );
       // ...e o visitante apagado que tenta reservar com o token antigo é mandado entrar de novo
       await reservar(cliente, 401);
+    });
+
+    it('cada visitante tem até 3 reservas futuras', async () => {
+      const v = await visitante('cliente');
+      for (let i = 0; i < RESERVAS_POR_VISITANTE; i++) await reservar(v, 201);
+      const resposta = await reservar(v, 422);
+      expect(resposta.body.message).toMatch(/até 3 reservas futuras/);
+    });
+
+    it('com o teto de visitantes da hora cheio, não cria mais contas (503); o dono entra', async () => {
+      const cheia = await criarApp({
+        DATABASE_URL: urlDaDemo,
+        CADENCE_DEMO: 'true',
+        VISITANTES_POR_HORA: '1',
+      });
+      try {
+        await visitante('cliente'); // pelo menos um na última hora
+        const pedir = (papel: string) =>
+          request(cheia.getHttpServer())
+            .post('/auth/visitante')
+            .send({ papel });
+        const resposta = await pedir('cliente').expect(503);
+        expect(resposta.body.message).toMatch(/cheia/);
+        await pedir('dono').expect(200);
+      } finally {
+        await cheia.close();
+      }
+    });
+
+    it('não entrega a Barbearia como visitante se o dono dela não for da demonstração (503)', async () => {
+      const negocio = await prisma.negocio.findUniqueOrThrow({
+        where: { slug: SLUG_DA_DEMO },
+      });
+      const real = await prisma.usuario.create({
+        data: {
+          nome: 'Dono real',
+          email: `real-${randomUUID()}@exemplo.com`,
+          senhaHash: 'x',
+          papel: 'dono',
+        },
+      });
+      try {
+        await prisma.negocio.update({
+          where: { id: negocio.id },
+          data: { donoId: real.id },
+        });
+        await http()
+          .post('/auth/visitante')
+          .send({ papel: 'dono' })
+          .expect(503);
+      } finally {
+        await prisma.negocio.update({
+          where: { id: negocio.id },
+          data: { donoId: negocio.donoId },
+        });
+        await prisma.usuario.delete({ where: { id: real.id } });
+      }
+    });
+
+    it('a reposição espera a reserva que está sendo gravada e termina', async () => {
+      // Do dono (a única conta da demonstração que a reposição não apaga): a reserva de um
+      // visitante cliente iria embora junto com a conta dele, em cascata
+      const v = await visitante('dono');
+      const livre = await horarioLivre();
+      const negocio = await prisma.negocio.findUniqueOrThrow({
+        where: { slug: SLUG_DA_DEMO },
+      });
+      // Uma reserva gravada numa transação ainda aberta, como a da API no meio do INSERT
+      const outra = new pg.Client({ connectionString: urlDaDemo });
+      await outra.connect();
+      try {
+        await outra.query('BEGIN');
+        await outra.query(
+          `INSERT INTO reservas (id, negocio_id, profissional_id, servico_id, cliente_id,
+             inicio, fim, preco_centavos, chave_idempotencia, hash_do_pedido)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, 3500, $7, 'x')`,
+          [
+            negocio.id,
+            livre.profissionalId,
+            livre.servicoId,
+            v.id,
+            livre.inicio,
+            livre.fim,
+            randomUUID(),
+          ],
+        );
+        const reposicao = semearDemo(prisma, new Date());
+        // A reposição esbarra na reserva ainda aberta (o DELETE do negócio espera por ela) e,
+        // quando ela termina, a leva junto na cascata: nada de erro de chave estrangeira
+        await new Promise((r) => setTimeout(r, 500));
+        await outra.query('COMMIT');
+        await expect(reposicao).resolves.toMatchObject({
+          visitantesApagados: expect.any(Number),
+        });
+      } finally {
+        await outra.end();
+      }
+      expect(await prisma.reserva.count({ where: { clienteId: v.id } })).toBe(
+        0,
+      );
+    });
+
+    it('a API não sobe em modo demonstração num banco com contas de verdade', async () => {
+      const comum = fora.get(PrismaService);
+      const real = await comum.usuario.create({
+        data: {
+          nome: 'Chris',
+          email: `chris-${randomUUID()}@exemplo.com`,
+          senhaHash: 'x',
+          papel: 'cliente',
+        },
+      });
+      try {
+        await expect(criarApp({ CADENCE_DEMO: 'true' })).rejects.toThrow(
+          /não são da demonstração/,
+        );
+      } finally {
+        await comum.usuario.delete({ where: { id: real.id } });
+      }
     });
   });
 });

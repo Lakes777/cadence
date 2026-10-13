@@ -53,6 +53,8 @@ const esquema = z.object({
   CADENCE_DEMO: z
     .stringbool({ error: 'CADENCE_DEMO: use true ou false' })
     .default(false),
+  // Na demonstração: contas de visitante criadas por hora, somando todos os IPs
+  VISITANTES_POR_HORA: z.coerce.number().int().min(1).default(300),
 });
 
 export type Config = Readonly<z.infer<typeof esquema>>;

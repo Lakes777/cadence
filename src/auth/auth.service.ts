@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   ServiceUnavailableException,
@@ -8,7 +9,9 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../banco/prisma.service.js';
+import { CONFIG, type Config } from '../config/config.js';
 import {
+  DOMINIO_DA_DEMO,
   ehDaDemo,
   emailDeVisitante,
   SENHA_DE_DEMONSTRACAO,
@@ -45,6 +48,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    @Inject(CONFIG) private readonly config: Config,
   ) {}
 
   async cadastrar(dados: Cadastro): Promise<Sessao> {
@@ -97,6 +101,19 @@ export class AuthService {
    */
   async entrarComoVisitante(papel: Papel): Promise<Sessao> {
     if (papel === 'cliente') {
+      // O limite por IP não segura quem troca de IP: um teto para todos juntos impede o banco
+      // de crescer sem fim entre uma reposição e outra
+      const naUltimaHora = await this.prisma.usuario.count({
+        where: {
+          email: { startsWith: 'visitante-', endsWith: `@${DOMINIO_DA_DEMO}` },
+          criadoEm: { gte: new Date(Date.now() - 3_600_000) },
+        },
+      });
+      if (naUltimaHora >= this.config.VISITANTES_POR_HORA) {
+        throw new ServiceUnavailableException(
+          'A demonstração está cheia agora; tente de novo depois da próxima reposição (de hora em hora)',
+        );
+      }
       const usuario = await this.prisma.usuario.create({
         data: {
           nome: 'Visitante',

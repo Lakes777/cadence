@@ -18,6 +18,13 @@ export const EMAIL_DO_DONO_DA_DEMO = `dono@${DOMINIO_DA_DEMO}`;
  */
 export const SENHA_DE_DEMONSTRACAO = 'demo$sem-senha';
 
+/**
+ * Limites contra abuso (um script poderia encher a agenda ou o banco entre uma reposição e
+ * outra): reservas futuras por visitante (aqui) e contas de visitante criadas por hora
+ * (VISITANTES_POR_HORA, na configuração).
+ */
+export const RESERVAS_POR_VISITANTE = 3;
+
 /** A conta é da demonstração (a reposição pode apagar)? */
 export function ehDaDemo(email: string): boolean {
   return email.toLowerCase().endsWith(`@${DOMINIO_DA_DEMO}`);
