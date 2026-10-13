@@ -255,6 +255,86 @@ describe('disponibilidade', () => {
     });
   });
 
+  it('mostra os ocupados por reserva (sem dizer quem nem com quem), mas não os bloqueados', async () => {
+    const n = await montar();
+    const sem = await consultar(n.slug, {
+      servicoId: n.barba.id,
+      data: '2026-10-12',
+    }).expect(200);
+    expect(sem.body.ocupados).toEqual([]);
+
+    const cliente = await novaConta(app, 'cliente');
+    const reservar = (profissionalId: string) =>
+      http()
+        .post(`/negocios/${n.slug}/reservas`)
+        .set('Authorization', `Bearer ${cliente.token}`)
+        .set('Idempotency-Key', randomUUID())
+        .send({
+          servicoId: n.barba.id,
+          profissionalId,
+          inicio: '2026-10-12T10:00:00-03:00',
+        })
+        .expect(201);
+    await como('post', `${n.base}/bloqueios`)
+      .send({
+        profissionalId: n.ana.id,
+        inicio: '2026-10-12T09:00:00-03:00',
+        fim: '2026-10-12T09:30:00-03:00',
+      })
+      .expect(201);
+
+    // Só a Ana reservou às 10:00: a Bia (10-11) ainda atende às 10:00, então ele segue livre
+    // para "qualquer um"; os outros que encostam na reserva só a Ana faria, e ficam ocupados
+    await reservar(n.ana.id);
+    const umaSo = await consultar(n.slug, {
+      servicoId: n.barba.id,
+      data: '2026-10-12',
+    }).expect(200);
+    expect(horas({ horarios: umaSo.body.ocupados })).toEqual([
+      '09:30',
+      '09:45',
+      '10:15',
+      '10:30',
+      '10:45',
+    ]);
+    expect(
+      umaSo.body.horarios.find((h: { hora: string }) => h.hora === '10:00')
+        .profissionalIds,
+    ).toEqual([n.bia.id]);
+    // Para a Ana, o 10:00 também; o que encosta no bloqueio (09:00 e 09:15) não aparece
+    const daAna = await consultar(n.slug, {
+      servicoId: n.barba.id,
+      data: '2026-10-12',
+      profissionalId: n.ana.id,
+    }).expect(200);
+    expect(horas({ horarios: daAna.body.ocupados })).toEqual([
+      '09:30',
+      '09:45',
+      '10:00',
+      '10:15',
+      '10:30',
+      '10:45',
+    ]);
+    expect(daAna.body.ocupados[2]).toEqual({
+      inicio: '2026-10-12T13:00:00.000Z',
+      fim: '2026-10-12T14:00:00.000Z',
+      hora: '10:00',
+    });
+    expect(horas(daAna.body)).toEqual(['11:00']);
+
+    // As duas reservadas às 10:00: ocupado para qualquer um, e o 09:00 bloqueado nunca aparece
+    await reservar(n.bia.id);
+    const asDuas = await consultar(n.slug, {
+      servicoId: n.barba.id,
+      data: '2026-10-12',
+    }).expect(200);
+    expect(horas({ horarios: asDuas.body.ocupados })).toContain('10:00');
+    expect(horas({ horarios: asDuas.body.ocupados })).not.toContain('09:00');
+    expect(horas(asDuas.body)).not.toContain('09:00');
+    expect(JSON.stringify(asDuas.body.ocupados)).not.toContain(n.ana.id);
+    expect(JSON.stringify(asDuas.body.ocupados)).not.toContain(cliente.id);
+  });
+
   it('serviço de outro negócio, endereço que não existe e consulta mal feita', async () => {
     const a = await montar();
     const b = await montar();

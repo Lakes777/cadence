@@ -1,4 +1,4 @@
-import { calcularHorarios, type Entrada } from './calculo.js';
+import { calcularDia, calcularHorarios, type Entrada } from './calculo.js';
 import { lerData } from './fuso.js';
 
 const SP = 'America/Sao_Paulo';
@@ -251,5 +251,92 @@ describe('calcularHorarios', () => {
       expect(lista.map((h) => h.hora)).toEqual(['00:00', '00:15', '00:30']);
       expect(lista.at(-1)!.fim.toISOString()).toBe('2026-03-08T07:00:00.000Z');
     });
+  });
+});
+
+describe('calcularDia (livres e ocupados)', () => {
+  const doisProfissionais = {
+    profissionais: [
+      { id: 'ana', intervalos: [{ inicioMin: 540, fimMin: 600 }] }, // 09-10
+      { id: 'bia', intervalos: [{ inicioMin: 540, fimMin: 600 }] }, // 09-10
+    ],
+  };
+  const reservaDe = (profissionalId: string, de: string, ate: string) => ({
+    profissionalId,
+    inicio: em(de),
+    fim: em(ate),
+  });
+
+  it('sem reservas não há ocupados', () => {
+    const { livres, ocupados } = calcularDia(entrada());
+    expect(livres).toHaveLength(7);
+    expect(ocupados).toEqual([]);
+  });
+
+  it('o horário tomado por uma reserva vira ocupado, sem dizer quem atende', () => {
+    const { livres, ocupados } = calcularDia(
+      entrada({ ocupados: [reservaDe('ana', '09:30', '10:00')] }),
+    );
+    // 09:15 (até 09:45), 09:30 e 09:45 (começa antes de 10:00) encostam na reserva
+    expect(ocupados.map((h) => h.hora)).toEqual(['09:15', '09:30', '09:45']);
+    expect(ocupados[1]).toEqual({
+      inicio: em('09:30'),
+      fim: em('10:00'),
+      hora: '09:30',
+    });
+    expect(livres.map((h) => h.hora)).toEqual([
+      '09:00',
+      '10:00',
+      '10:15',
+      '10:30',
+    ]);
+  });
+
+  it('com dois profissionais, só é ocupado quando nenhum dos dois pode', () => {
+    const umaSo = calcularDia(
+      entrada({
+        ...doisProfissionais,
+        ocupados: [reservaDe('ana', '09:00', '09:30')],
+      }),
+    );
+    expect(umaSo.ocupados).toEqual([]);
+    expect(
+      umaSo.livres.find((h) => h.hora === '09:00')?.profissionalIds,
+    ).toEqual(['bia']);
+
+    const asDuas = calcularDia(
+      entrada({
+        ...doisProfissionais,
+        ocupados: [
+          reservaDe('ana', '09:00', '09:30'),
+          reservaDe('bia', '09:00', '09:30'),
+        ],
+      }),
+    );
+    expect(asDuas.ocupados.map((h) => h.hora)).toEqual(['09:00', '09:15']);
+  });
+
+  it('bloqueio não vira ocupado: o horário só deixa de aparecer', () => {
+    const { livres, ocupados } = calcularDia(
+      entrada({
+        bloqueios: [
+          { profissionalId: null, inicio: em('09:00'), fim: em('10:00') },
+        ],
+        ocupados: [reservaDe('ana', '10:00', '10:30')],
+      }),
+    );
+    expect(ocupados.map((h) => h.hora)).toEqual(['10:00', '10:15']);
+    expect(livres.map((h) => h.hora)).toEqual(['10:30']);
+  });
+
+  it('o que começa cedo demais não aparece em nenhuma das listas', () => {
+    const { livres, ocupados } = calcularDia(
+      entrada({
+        aPartirDe: em('10:00'),
+        ocupados: [reservaDe('ana', '09:00', '10:30')],
+      }),
+    );
+    expect(ocupados.map((h) => h.hora)).toEqual(['10:00', '10:15']);
+    expect(livres.map((h) => h.hora)).toEqual(['10:30']);
   });
 });

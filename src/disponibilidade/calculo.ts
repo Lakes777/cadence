@@ -96,3 +96,24 @@ export function calcularHorarios(entrada: Entrada): HorarioLivre[] {
     (a, b) => a.inicio.getTime() - b.inicio.getTime(),
   );
 }
+
+export type HorarioOcupado = Periodo & { hora: string };
+
+/**
+ * Os livres e os ocupados do dia. Ocupado é o horário que seria oferecido se não houvesse
+ * reservas e que agora não está livre para ninguém: sem um profissional escolhido, basta um
+ * livre para o horário não contar como ocupado. Bloqueio não vira ocupado (o horário só some),
+ * e o ocupado não diz quem reservou nem com qual profissional.
+ */
+export function calcularDia(entrada: Entrada): {
+  livres: HorarioLivre[];
+  ocupados: HorarioOcupado[];
+} {
+  const livres = calcularHorarios(entrada);
+  if (!entrada.ocupados.length) return { livres, ocupados: [] };
+  const livresPorInicio = new Set(livres.map((h) => h.inicio.getTime()));
+  const ocupados = calcularHorarios({ ...entrada, ocupados: [] })
+    .filter((h) => !livresPorInicio.has(h.inicio.getTime()))
+    .map(({ inicio, fim, hora }) => ({ inicio, fim, hora }));
+  return { livres, ocupados };
+}

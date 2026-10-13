@@ -7,7 +7,12 @@ import {
 import { PrismaService } from '../banco/prisma.service.js';
 import { RELOGIO, type Relogio } from '../comum/relogio.js';
 import type { Negocio, Servico } from '../generated/prisma/client.js';
-import { calcularHorarios, type HorarioLivre } from './calculo.js';
+import {
+  calcularDia,
+  calcularHorarios,
+  type Entrada,
+  type HorarioLivre,
+} from './calculo.js';
 import type { Consulta } from './disponibilidade.dto.js';
 import {
   dataLocal,
@@ -35,6 +40,8 @@ export interface DisponibilidadeResposta {
     hora: string;
     profissionalIds: string[];
   }[];
+  /** Horários que existiriam sem as reservas e que ninguém pode mais atender */
+  ocupados: { inicio: string; fim: string; hora: string }[];
 }
 
 @Injectable()
@@ -49,12 +56,15 @@ export class DisponibilidadeService {
     { servicoId, data, profissionalId }: Consulta,
   ): Promise<DisponibilidadeResposta> {
     const { negocio, servico } = await this.negocioEServico(slug, servicoId);
-    const horarios = await this.horariosDoDia(
+    const entrada = await this.entradaDoDia(
       negocio,
       servico,
       data,
       profissionalId,
     );
+    const { livres, ocupados } = entrada
+      ? calcularDia(entrada)
+      : { livres: [], ocupados: [] };
     return {
       data: textoDaData(data),
       fuso: negocio.fuso,
@@ -63,11 +73,16 @@ export class DisponibilidadeService {
         nome: servico.nome,
         duracaoMin: servico.duracaoMin,
       },
-      horarios: horarios.map((h) => ({
+      horarios: livres.map((h) => ({
         inicio: h.inicio.toISOString(),
         fim: h.fim.toISOString(),
         hora: h.hora,
         profissionalIds: [...h.profissionalIds].sort(),
+      })),
+      ocupados: ocupados.map((h) => ({
+        inicio: h.inicio.toISOString(),
+        fim: h.fim.toISOString(),
+        hora: h.hora,
       })),
     };
   }
@@ -96,6 +111,22 @@ export class DisponibilidadeService {
     data: DataLocal,
     profissionalId?: string,
   ): Promise<HorarioLivre[]> {
+    const entrada = await this.entradaDoDia(
+      negocio,
+      servico,
+      data,
+      profissionalId,
+    );
+    return entrada ? calcularHorarios(entrada) : [];
+  }
+
+  /** Tudo o que o cálculo do dia precisa (null quando não há o que oferecer) */
+  private async entradaDoDia(
+    negocio: Negocio,
+    servico: Servico,
+    data: DataLocal,
+    profissionalId?: string,
+  ): Promise<Entrada | null> {
     const agora = this.relogio.agora();
     const distancia = diasEntre(dataLocal(agora, negocio.fuso), data);
     if (distancia > JANELA_DIAS) {
@@ -103,7 +134,7 @@ export class DisponibilidadeService {
         `A agenda abre só ${JANELA_DIAS} dias à frente`,
       );
     }
-    if (distancia < 0) return []; // dia que já passou
+    if (distancia < 0) return null; // dia que já passou
 
     const profissionais = await this.prisma.profissional.findMany({
       where: {
@@ -120,7 +151,7 @@ export class DisponibilidadeService {
         },
       },
     });
-    if (!profissionais.length) return [];
+    if (!profissionais.length) return null;
     const ids = profissionais.map((p) => p.id);
 
     // Tudo que pode tocar o dia: da meia-noite local até a seguinte, com folga de um dia
@@ -150,7 +181,7 @@ export class DisponibilidadeService {
       }),
     ]);
 
-    return calcularHorarios({
+    return {
       data,
       fuso: negocio.fuso,
       duracaoMin: servico.duracaoMin,
@@ -161,6 +192,6 @@ export class DisponibilidadeService {
       bloqueios,
       ocupados,
       aPartirDe: new Date(agora.getTime() + ANTECEDENCIA_MIN * 60_000),
-    });
+    };
   }
 }
