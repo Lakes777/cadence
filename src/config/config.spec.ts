@@ -24,6 +24,7 @@ describe('lerConfig', () => {
       JWT_SEGREDO: SEGREDO,
       PEDIDOS_DE_CONTA_POR_MINUTO: 10,
       PEDIDOS_PUBLICOS_POR_MINUTO: 120,
+      CONEXOES_POR_IP: 20,
       CONFIANCA_NO_PROXY: 'loopback',
     });
   });

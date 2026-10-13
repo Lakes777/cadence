@@ -1,6 +1,7 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../banco/prisma.service.js';
 import { RELOGIO, type Relogio } from '../comum/relogio.js';
+import { TempoReal } from '../tempo-real/tempo-real.js';
 import { HORAS_DE_ANTECEDENCIA, textoDoLembrete } from './lembrete.js';
 
 /** O que aconteceu com uma tentativa de enviar o lembrete */
@@ -24,9 +25,12 @@ export interface AvisoResposta {
 
 @Injectable()
 export class LembretesService {
+  private readonly logger = new Logger(LembretesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(RELOGIO) private readonly relogio: Relogio,
+    private readonly tempoReal: TempoReal,
   ) {}
 
   /**
@@ -35,6 +39,19 @@ export class LembretesService {
    * garante isso é a chave única (reserva, tipo) do banco.
    */
   async enviar(reservaId: string): Promise<Envio> {
+    const envio = await this.gravar(reservaId);
+    // O aviso já está gravado (aparece em GET /avisos); falhar aqui não pode repetir a tarefa
+    if (envio === 'enviado') {
+      await this.mostrarNaHora(reservaId).catch((erro: Error) =>
+        this.logger.warn(
+          `Aviso da reserva ${reservaId} fora do tempo real: ${erro.message}`,
+        ),
+      );
+    }
+    return envio;
+  }
+
+  private async gravar(reservaId: string): Promise<Envio> {
     return this.prisma.$transaction(async (tx) => {
       // Trava a reserva: um cancelamento ao mesmo tempo espera este envio terminar (ou o
       // envio espera o cancelamento e desiste), nunca um lembrete de reserva já cancelada
@@ -71,6 +88,20 @@ export class LembretesService {
       });
       return count === 1 ? 'enviado' : 'repetido';
     });
+  }
+
+  /** Depois de gravado (fora da transação): quem está com a página aberta vê o aviso chegar */
+  private async mostrarNaHora(reservaId: string): Promise<void> {
+    const aviso = await this.prisma.aviso.findUnique({
+      where: { reservaId_tipo: { reservaId, tipo: 'lembrete' } },
+      include: COM_STATUS,
+    });
+    if (aviso) {
+      this.tempoReal.paraUsuario(aviso.usuarioId, {
+        tipo: 'aviso',
+        aviso: avisoResposta(aviso),
+      });
+    }
   }
 
   /**

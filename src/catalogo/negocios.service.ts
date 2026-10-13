@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../banco/prisma.service.js';
+import { TempoReal } from '../tempo-real/tempo-real.js';
 import { Prisma, type Negocio } from '../generated/prisma/client.js';
 import type { MudancaNegocio, NovoNegocio } from './catalogo.dto.js';
 import {
@@ -18,7 +19,10 @@ const SLUG_EM_USO = 'Este endereço já está em uso; escolha outro';
 
 @Injectable()
 export class NegociosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tempoReal: TempoReal,
+  ) {}
 
   async criar(donoId: string, dados: NovoNegocio): Promise<NegocioResposta> {
     if (dados.slug) {
@@ -53,17 +57,19 @@ export class NegociosService {
     donoId: string,
     dados: MudancaNegocio,
   ): Promise<NegocioResposta> {
-    await this.doDono(negocioId, donoId);
+    const antes = await this.doDono(negocioId, donoId);
+    let negocio: Negocio;
     try {
-      return negocioResposta(
-        await this.prisma.negocio.update({
-          where: { id: negocioId },
-          data: dados,
-        }),
-      );
+      negocio = await this.prisma.negocio.update({
+        where: { id: negocioId },
+        data: dados,
+      });
     } catch (erro) {
       throw traduzirSlugRepetido(erro);
     }
+    // O fuso muda os horários; quem olha pelo endereço antigo fica sabendo da troca de endereço
+    this.tempoReal.catalogoMudou(antes.slug, negocio.slug);
+    return negocioResposta(negocio);
   }
 
   /**

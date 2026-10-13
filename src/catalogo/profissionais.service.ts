@@ -4,6 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../banco/prisma.service.js';
+import type { Negocio } from '../generated/prisma/client.js';
+import { TempoReal } from '../tempo-real/tempo-real.js';
 import type {
   Horarios,
   MudancaProfissional,
@@ -23,6 +25,7 @@ export class ProfissionaisService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly negocios: NegociosService,
+    private readonly tempoReal: TempoReal,
   ) {}
 
   async listar(
@@ -58,14 +61,15 @@ export class ProfissionaisService {
     profissionalId: string,
     dados: MudancaProfissional,
   ): Promise<ProfissionalResposta> {
-    await this.doNegocio(negocioId, donoId, profissionalId);
-    return profissionalResposta(
-      await this.prisma.profissional.update({
-        where: { id: profissionalId },
-        data: dados,
-        include: COMPLETO,
-      }),
-    );
+    const negocio = await this.doNegocio(negocioId, donoId, profissionalId);
+    const profissional = await this.prisma.profissional.update({
+      where: { id: profissionalId },
+      data: dados,
+      include: COMPLETO,
+    });
+    // Desativar (ou reativar) tira (ou devolve) os horários dele
+    this.tempoReal.catalogoMudou(negocio.slug);
+    return profissionalResposta(profissional);
   }
 
   /** Troca a lista inteira de serviços que o profissional faz. */
@@ -75,7 +79,7 @@ export class ProfissionaisService {
     profissionalId: string,
     { servicoIds }: ServicosDoProfissional,
   ): Promise<ProfissionalResposta> {
-    await this.doNegocio(negocioId, donoId, profissionalId);
+    const negocio = await this.doNegocio(negocioId, donoId, profissionalId);
     // Só serviços deste negócio: senão daria para "pendurar" o serviço de outro dono aqui
     const doNegocio = await this.prisma.servico.count({
       where: { id: { in: servicoIds }, negocioId },
@@ -103,6 +107,7 @@ export class ProfissionaisService {
         })),
       });
     });
+    this.tempoReal.catalogoMudou(negocio.slug);
     return this.buscar(profissionalId);
   }
 
@@ -113,7 +118,7 @@ export class ProfissionaisService {
     profissionalId: string,
     { horarios }: Horarios,
   ): Promise<ProfissionalResposta> {
-    await this.doNegocio(negocioId, donoId, profissionalId);
+    const negocio = await this.doNegocio(negocioId, donoId, profissionalId);
     await this.prisma.$transaction(async (tx) => {
       await trancar(tx, profissionalId);
       await tx.horarioDeTrabalho.deleteMany({ where: { profissionalId } });
@@ -121,6 +126,7 @@ export class ProfissionaisService {
         data: horarios.map((h) => ({ ...h, profissionalId })),
       });
     });
+    this.tempoReal.catalogoMudou(negocio.slug);
     return this.buscar(profissionalId);
   }
 
@@ -129,12 +135,13 @@ export class ProfissionaisService {
     negocioId: string,
     donoId: string,
     profissionalId: string,
-  ): Promise<void> {
-    await this.negocios.doDono(negocioId, donoId);
+  ): Promise<Negocio> {
+    const negocio = await this.negocios.doDono(negocioId, donoId);
     const existe = await this.prisma.profissional.count({
       where: { id: profissionalId, negocioId },
     });
     if (!existe) throw new NotFoundException('Profissional não encontrado');
+    return negocio;
   }
 
   private async buscar(profissionalId: string): Promise<ProfissionalResposta> {

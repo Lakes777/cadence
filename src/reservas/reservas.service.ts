@@ -16,6 +16,7 @@ import { dataLocal } from '../disponibilidade/fuso.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { FilaDeLembretes } from '../lembretes/fila.js';
 import { momentoDoLembrete } from '../lembretes/lembrete.js';
+import { TempoReal } from '../tempo-real/tempo-real.js';
 import {
   FORMATO_DA_CHAVE,
   type Minhas,
@@ -53,6 +54,7 @@ export class ReservasService {
     private readonly disponibilidade: DisponibilidadeService,
     private readonly negocios: NegociosService,
     private readonly fila: FilaDeLembretes,
+    private readonly tempoReal: TempoReal,
     @Inject(RELOGIO) private readonly relogio: Relogio,
   ) {}
 
@@ -114,7 +116,9 @@ export class ReservasService {
         });
         // Depois de gravar: a reserva vale mesmo se o Redis estiver fora do ar
         if (lembreteEm) await this.fila.agendar(reserva.id, lembreteEm);
-        return { reserva: reservaResposta(reserva), nova: true };
+        const resposta = reservaResposta(reserva);
+        this.avisarMudanca(reserva.clienteId, resposta);
+        return { reserva: resposta, nova: true };
       } catch (erro) {
         if (!violou(erro, '23P01') && !violou(erro, '23505')) throw erro;
         // O mesmo pedido (mesma chave) chegou duas vezes ao mesmo tempo: a cópia que perdeu
@@ -228,13 +232,30 @@ export class ReservasService {
       where: { id: reserva.id, status: 'confirmada' },
       data: { status: 'cancelada', canceladaEm: agora },
     });
-    if (count === 1) await this.fila.desagendar(reserva.id);
-    return reservaResposta(
+    const resposta = reservaResposta(
       await this.prisma.reserva.findUniqueOrThrow({
         where: { id: reserva.id },
         include: INCLUIR,
       }),
     );
+    if (count === 1) {
+      await this.fila.desagendar(reserva.id);
+      this.avisarMudanca(reserva.clienteId, resposta);
+    }
+    return resposta;
+  }
+
+  /**
+   * Quem está olhando os horários do dia vê o horário sumir (ou voltar) sem recarregar, e o
+   * cliente fica sabendo em todas as abas (inclusive quando quem cancelou foi o estabelecimento)
+   */
+  private avisarMudanca(clienteId: string, reserva: ReservaResposta): void {
+    this.tempoReal.horariosMudaram(
+      reserva.negocio,
+      new Date(reserva.inicio),
+      new Date(reserva.fim),
+    );
+    this.tempoReal.paraUsuario(clienteId, { tipo: 'reserva', reserva });
   }
 
   /**

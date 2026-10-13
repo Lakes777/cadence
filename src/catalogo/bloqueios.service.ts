@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../banco/prisma.service.js';
+import { TempoReal } from '../tempo-real/tempo-real.js';
 import { UM_ANO_MS, type NovoBloqueio, type Periodo } from './catalogo.dto.js';
 import { NegociosService } from './negocios.service.js';
 import { ProfissionaisService } from './profissionais.service.js';
@@ -14,6 +15,7 @@ export class BloqueiosService {
     private readonly prisma: PrismaService,
     private readonly negocios: NegociosService,
     private readonly profissionais: ProfissionaisService,
+    private readonly tempoReal: TempoReal,
   ) {}
 
   /**
@@ -47,26 +49,25 @@ export class BloqueiosService {
     donoId: string,
     dados: NovoBloqueio,
   ): Promise<BloqueioResposta> {
+    const negocio = await this.negocios.doDono(negocioId, donoId);
     if (dados.profissionalId) {
       await this.profissionais.doNegocio(
         negocioId,
         donoId,
         dados.profissionalId,
       );
-    } else {
-      await this.negocios.doDono(negocioId, donoId);
     }
-    return bloqueioResposta(
-      await this.prisma.bloqueio.create({
-        data: {
-          negocioId,
-          profissionalId: dados.profissionalId ?? null,
-          inicio: dados.inicio,
-          fim: dados.fim,
-          motivo: dados.motivo || null,
-        },
-      }),
-    );
+    const bloqueio = await this.prisma.bloqueio.create({
+      data: {
+        negocioId,
+        profissionalId: dados.profissionalId ?? null,
+        inicio: dados.inicio,
+        fim: dados.fim,
+        motivo: dados.motivo || null,
+      },
+    });
+    this.tempoReal.horariosMudaram(negocio, bloqueio.inicio, bloqueio.fim);
+    return bloqueioResposta(bloqueio);
   }
 
   async remover(
@@ -74,10 +75,16 @@ export class BloqueiosService {
     donoId: string,
     bloqueioId: string,
   ): Promise<void> {
-    await this.negocios.doDono(negocioId, donoId);
+    const negocio = await this.negocios.doDono(negocioId, donoId);
+    const bloqueio = await this.prisma.bloqueio.findFirst({
+      where: { id: bloqueioId, negocioId },
+    });
     const { count } = await this.prisma.bloqueio.deleteMany({
       where: { id: bloqueioId, negocioId },
     });
-    if (!count) throw new NotFoundException('Bloqueio não encontrado');
+    if (!bloqueio || !count) {
+      throw new NotFoundException('Bloqueio não encontrado');
+    }
+    this.tempoReal.horariosMudaram(negocio, bloqueio.inicio, bloqueio.fim);
   }
 }

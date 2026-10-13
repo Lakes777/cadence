@@ -32,6 +32,8 @@ const esquema = z.object({
   PEDIDOS_DE_CONTA_POR_MINUTO: z.coerce.number().int().min(1).default(10),
   // Vitrine, disponibilidade e reservar, por IP a cada minuto em cada rota
   PEDIDOS_PUBLICOS_POR_MINUTO: z.coerce.number().int().min(1).default(120),
+  // Conexões de WebSocket abertas ao mesmo tempo por IP (cada aba aberta é uma)
+  CONEXOES_POR_IP: z.coerce.number().int().min(1).default(20),
   // De quem aceitar o X-Forwarded-For (o IP real vale para o limite de pedidos e os logs).
   // Palavras do Express (loopback, uniquelocal...), IPs ou sub-redes separados por vírgula.
   // "true" fica de fora: qualquer um forjaria o próprio IP e escaparia do limite.

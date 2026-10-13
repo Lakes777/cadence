@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { TempoRealModule } from '../tempo-real/tempo-real.module.js';
 import { BloqueiosController } from './bloqueios.controller.js';
 import { BloqueiosService } from './bloqueios.service.js';
 import {
@@ -13,6 +14,7 @@ import { ServicosService } from './servicos.service.js';
 
 /** Negócio, profissionais, serviços, horário semanal e bloqueios (fase 3). */
 @Module({
+  imports: [TempoRealModule],
   controllers: [
     NegociosController,
     VitrineController,

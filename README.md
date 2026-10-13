@@ -19,7 +19,7 @@ milissegundo. **Em construção:** as fases abaixo mostram o que já está pront
 - [x] **4. Disponibilidade:** horários livres do dia por serviço, no fuso do negócio (conversão feita à mão com `Intl`, testada nos dias de horário de verão), com bloqueios, antecedência mínima e janela de 60 dias
 - [x] **5. Reservas:** restrição de exclusão no Postgres contra horários sobrepostos, `Idempotency-Key` contra clique duplo, cancelamento com antecedência mínima, agenda do dono e teste com 50 pedidos simultâneos no mesmo horário
 - [x] **6. Lembretes:** fila (BullMQ + Redis) com o lembrete agendado para 24 h antes; cancelar tira o lembrete da fila; sem Redis, as reservas seguem e uma conferência periódica envia o que a fila perdeu
-- [ ] **7. Tempo real:** WebSocket: quem está olhando o dia vê o horário sumir quando outra pessoa reserva
+- [x] **7. Tempo real:** WebSocket: quem está olhando o dia vê o horário sumir quando outra pessoa reserva, e o cliente recebe as próprias reservas e lembretes na hora, sem recarregar
 - [ ] **8. Interface:** React + Vite (renovação do token em fila única entre as abas), com identidade visual própria ("Relógio de ponto", ver [docs/identidade.md](docs/identidade.md)); tela do cliente, painel do dono e um negócio de demonstração
 - [ ] **9. Publicação:** Docker Compose numa VM da Oracle, com HTTPS e vigiado pelo [Vigil](https://github.com/Lakes777/vigil)
 
@@ -52,6 +52,7 @@ Lida do ambiente e validada na partida: se algo estiver errado, a API não sobe 
 | `JWT_SEGREDO` | (obrigatório) | assina os tokens de acesso; pelo menos 32 caracteres (`openssl rand -hex 32`) |
 | `PEDIDOS_PUBLICOS_POR_MINUTO` | `120` | pedidos por IP a cada minuto em cada rota pública (vitrine, disponibilidade, reservar); limite separado do de conta |
 | `PEDIDOS_DE_CONTA_POR_MINUTO` | `10` | pedidos por IP a cada minuto em **cada** rota de conta (cadastro, entrar, renovar); o excesso leva `429` |
+| `CONEXOES_POR_IP` | `20` | conexões de WebSocket abertas ao mesmo tempo por IP (cada aba é uma); o excesso leva `429` |
 | `CONFIANCA_NO_PROXY` | `loopback` | de quem aceitar o `X-Forwarded-For` (o IP real usado no limite e nos logs): `loopback`, `uniquelocal`, IPs ou sub-redes separados por vírgula. Com o Caddy em container, use a sub-rede do Docker; sem isso, todo mundo divide o mesmo limite |
 
 ## Contas
@@ -229,8 +230,8 @@ reservou; só o dono vê os clientes, e só os do próprio negócio.
 
 Cada reserva feita com mais de 24 h de antecedência ganha um **lembrete para 24 h antes**, numa
 fila do BullMQ no Redis (tarefa atrasada até a hora certa). Na hora, o trabalhador grava um aviso
-para o cliente, que aparece em `GET /avisos`. A partir da fase 7, o mesmo aviso vai chegar na
-hora pelo WebSocket. Quem reserva em cima da hora (menos de 24 h antes) acabou de ver a reserva e
+para o cliente, que aparece em `GET /avisos`. O mesmo aviso chega na hora pelo WebSocket
+(ver [Tempo real](#tempo-real)). Quem reserva em cima da hora (menos de 24 h antes) acabou de ver a reserva e
 não recebe lembrete.
 
 | Rota | O que faz |
@@ -268,6 +269,66 @@ pouco trabalho; para separar, bastaria subir o provedor dele em outro processo.
 **Escolha consciente:** por enquanto, o lembrete fica **dentro do sistema** (`/avisos`), sem
 e-mail. Mandar e-mail precisaria de um serviço de envio e de um domínio verificado. Com o aviso
 gravado no banco, esse canal vira mais um passo depois da gravação.
+
+## Tempo real
+
+WebSocket em `/tempo-real` (`wss://` atrás do Caddy). Quem está olhando os horários de um dia vê
+o horário sumir quando outra pessoa reserva, sem a tela ficar perguntando a cada segundo. O
+servidor não manda a lista nova: avisa **quais dias mudaram**, e a tela busca de novo em
+`/disponibilidade`. Assim a regra do cálculo continua num lugar só.
+
+O navegador manda JSON:
+
+| Mensagem | O que faz |
+|---|---|
+| `{"tipo":"assinar","negocio":"<slug>"}` | passa a receber `horarios` e `catalogo` desse negócio (sem login; até 10 negócios por conexão) |
+| `{"tipo":"desassinar","negocio":"<slug>"}` | para de receber |
+| `{"tipo":"entrar","token":"<token de acesso>"}` | liga a conexão à conta: chegam as próprias `reserva` e `aviso` |
+| `{"tipo":"sair"}` | desliga da conta (a conexão continua) |
+
+O servidor manda:
+
+| Mensagem | Quando |
+|---|---|
+| `horarios` `{negocio, de, ate}` | uma reserva, um cancelamento ou um bloqueio mudou os dias de `de` a `ate` (datas no fuso do negócio) |
+| `catalogo` `{negocio}` | o dono mudou o horário semanal, um profissional (ativo, serviços), um serviço (duração, ativo) ou o negócio (fuso, endereço): qualquer dia pode ter mudado, busque de novo o que está na tela. Se o endereço mudou, vem `novoEndereco` (o antigo passa a dar `404`) |
+| `reserva` `{reserva}` | uma reserva sua foi criada (em outra aba) ou cancelada (por você ou pelo estabelecimento) |
+| `aviso` `{aviso}` | o lembrete de 24 h antes, no momento em que é gravado (o mesmo de `GET /avisos`) |
+| `sessaoVencida` | o token venceu: mande `entrar` com um novo para voltar a receber |
+| `entrou` `{expiraEm}`, `saiu` | confirmam `entrar` (segundos até o token vencer) e `sair` |
+| `assinado` `{negocio}`, `desassinado` `{negocio}` | confirmam `assinar` e `desassinar` |
+| `erro` `{mensagem}` | mensagem que não é JSON, tipo desconhecido, slug inválido, token inválido |
+
+**Escolhas e o que pode dar errado:**
+
+- **O token vai numa mensagem, não na URL:** a URL fica gravada no log do proxy. A conexão fica
+  ligada à conta só até o token vencer (15 min), como no resto da API. A interface manda `entrar`
+  de novo a cada renovação. Se a aba manda `entrar` e logo depois `sair` (ou `entrar` com outra
+  conta), vale a última mensagem mandada, mesmo que a conferência do primeiro token termine depois.
+- **Privacidade:** `horarios` diz só que um dia mudou, nunca quem reservou. `reserva` e `aviso`
+  vão apenas para as conexões da própria pessoa.
+- **O aviso sai depois de gravado.** A reserva já está no banco quando `horarios` chega, então a
+  busca seguinte já não mostra o horário. Uma falha ao avisar fica no log e nunca transforma a
+  operação já gravada num erro (a reserva feita não vira `500`; o lembrete não roda de novo, porque
+  o aviso já está em `GET /avisos`).
+- **Limites:** `CONEXOES_POR_IP` abertas por IP (o excesso leva `429` antes de abrir; o IP é o
+  mesmo do Express, respeitando `CONFIANCA_NO_PROXY`), mensagens de até 4 KB (`1009`), até 30
+  mensagens a cada 10 s (`1008`), e quem não lê o que chega (mais de 1 MB parado) é derrubado.
+  Um erro inesperado ao tratar uma mensagem derruba só aquela conexão. Quem pede o upgrade e
+  corta a conexão (RST) antes de o WebSocket abrir também não derruba o processo: há teste para
+  isso, porque sem o tratamento a API caía. Ainda falta, para depois do deploy: o limite conta
+  cada IPv6 inteiro, então quem tem um bloco `/64` escapa dele, e não há limite de conexões
+  abertas por minuto.
+- **Conexões mortas:** um ping a cada 30 s derruba quem não respondeu ao anterior (Wi-Fi caído,
+  celular dormindo).
+- **Ao desligar** (deploy, `docker stop`), cada conexão recebe `1001` e o servidor espera no
+  máximo 1 s pela resposta antes de derrubar. Detalhe que um teste pegou: no NestJS 12, o
+  servidor HTTP fecha **antes** do `onApplicationShutdown`, e ele espera as conexões de
+  WebSocket terminarem. Fechá-las ali deixava os dois esperando um pelo outro. Por isso o
+  fechamento fica no `beforeApplicationShutdown`.
+- **Uma instância só:** quem está conectado fica na memória do processo. Com duas instâncias da
+  API, os eventos precisariam passar por um canal comum (por exemplo, o pub/sub do Redis que a
+  fila já usa).
 
 ## Saúde
 

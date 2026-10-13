@@ -11,6 +11,7 @@ import { DisponibilidadeModule } from './disponibilidade/disponibilidade.module.
 import { LembretesModule } from './lembretes/lembretes.module.js';
 import { ReservasModule } from './reservas/reservas.module.js';
 import { SaudeModule } from './saude/saude.module.js';
+import { TempoRealModule } from './tempo-real/tempo-real.module.js';
 
 const ID_DO_PEDIDO = /^[\w-]{1,64}$/;
 
@@ -71,6 +72,7 @@ const ID_DO_PEDIDO = /^[\w-]{1,64}$/;
     ReservasModule,
     LembretesModule,
     SaudeModule,
+    TempoRealModule,
   ],
 })
 export class AppModule {}

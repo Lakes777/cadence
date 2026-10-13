@@ -29,5 +29,7 @@ import { PapeisGuard } from './papeis.guard.js';
     { provide: APP_GUARD, useClass: AutenticacaoGuard },
     { provide: APP_GUARD, useClass: PapeisGuard },
   ],
+  // O tempo real confere o mesmo token de acesso
+  exports: [JwtModule],
 })
 export class AuthModule {}
