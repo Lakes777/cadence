@@ -71,6 +71,7 @@ Lida do ambiente e validada na partida: se algo estiver errado, a API não sobe 
 | `PEDIDOS_PUBLICOS_POR_MINUTO` | `120` | pedidos por IP a cada minuto em cada rota pública (vitrine, disponibilidade, reservar); limite separado do de conta |
 | `PEDIDOS_DE_CONTA_POR_MINUTO` | `10` | pedidos por IP a cada minuto em **cada** rota de conta (cadastro, entrar, renovar); o excesso leva `429` |
 | `CONEXOES_POR_IP` | `20` | conexões de WebSocket abertas ao mesmo tempo por IP (cada aba é uma); o excesso leva `429` |
+| `CONEXOES_POR_MINUTO` | `60` | conexões de WebSocket **novas** por IP a cada minuto (pega quem abre e fecha em loop); o excesso leva `429` |
 | `CONFIANCA_NO_PROXY` | `loopback` | de quem aceitar o `X-Forwarded-For` (o IP real usado no limite e nos logs): `loopback`, `uniquelocal`, IPs ou sub-redes separados por vírgula. Com o Caddy em container, use a sub-rede do Docker; sem isso, todo mundo divide o mesmo limite |
 | `CADENCE_DEMO` | `false` | `true` liga a [demonstração](#demonstração): entrar como visitante, cadastro fechado e `npm run semear-demo` |
 | `VISITANTES_POR_HORA` | `300` | só na demonstração: contas de visitante cliente criadas por hora, somando todos os IPs |
@@ -341,14 +342,17 @@ O servidor manda:
   busca seguinte já não mostra o horário. Uma falha ao avisar fica no log e nunca transforma a
   operação já gravada num erro (a reserva feita não vira `500`; o lembrete não roda de novo, porque
   o aviso já está em `GET /avisos`).
-- **Limites:** `CONEXOES_POR_IP` abertas por IP (o excesso leva `429` antes de abrir; o IP é o
-  mesmo do Express, respeitando `CONFIANCA_NO_PROXY`), mensagens de até 4 KB (`1009`), até 30
+- **Limites:** `CONEXOES_POR_IP` abertas por IP e `CONEXOES_POR_MINUTO` novas por IP a cada
+  minuto (o excesso leva `429` antes de abrir; o IP é o mesmo do Express, respeitando
+  `CONFIANCA_NO_PROXY`), mensagens de até 4 KB (`1009`), até 30
   mensagens a cada 10 s (`1008`), e quem não lê o que chega (mais de 1 MB parado) é derrubado.
   Um erro inesperado ao tratar uma mensagem derruba só aquela conexão. Quem pede o upgrade e
   corta a conexão (RST) antes de o WebSocket abrir também não derruba o processo: há teste para
-  isso, porque sem o tratamento a API caía. O limite conta cada IPv6 inteiro (quem tem um bloco
-  `/64` escaparia dele), mas a VM de publicação só tem IPv4. Ainda falta um limite de conexões
-  abertas por minuto.
+  isso, porque sem o tratamento a API caía. O limite por minuto existe porque o de abertas não pega quem
+  abre e fecha em loop, e cada abertura custa um upgrade; conta só as aceitas, numa janela fixa
+  de 60 s, e o navegador reconecta com espera crescente (1 s a 30 s), então uma aba faz poucas por
+  minuto. Os limites contam cada IPv6 inteiro (quem tem um bloco `/64` escaparia deles), mas a VM
+  de publicação só tem IPv4.
 - **Conexões mortas:** um ping a cada 30 s derruba quem não respondeu ao anterior (Wi-Fi caído,
   celular dormindo).
 - **Ao desligar** (deploy, `docker stop`), cada conexão recebe `1001` e o servidor espera no

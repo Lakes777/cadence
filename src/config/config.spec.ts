@@ -25,6 +25,7 @@ describe('lerConfig', () => {
       PEDIDOS_DE_CONTA_POR_MINUTO: 10,
       PEDIDOS_PUBLICOS_POR_MINUTO: 120,
       CONEXOES_POR_IP: 20,
+      CONEXOES_POR_MINUTO: 60,
       CONFIANCA_NO_PROXY: 'loopback',
       CADENCE_DEMO: false,
       VISITANTES_POR_HORA: 300,

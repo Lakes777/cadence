@@ -572,6 +572,32 @@ describe('tempo real', () => {
       }
     });
 
+    it('recusa com 429 quem abre conexões novas demais no minuto, mesmo fechando cada uma', async () => {
+      const limitado = await criarApp({
+        CONEXOES_POR_IP: '10',
+        CONEXOES_POR_MINUTO: '3',
+      });
+      try {
+        await limitado.listen(0, '127.0.0.1');
+        const { port } = (
+          limitado.getHttpServer() as Server
+        ).address() as AddressInfo;
+        const endereco = `ws://127.0.0.1:${port}/tempo-real`;
+        // Abre e fecha: nunca passa de uma aberta, então só o limite por minuto pega
+        for (let i = 0; i < 3; i++) {
+          const navegador = await abrir(endereco);
+          navegador.fechar();
+          await navegador.fechou;
+        }
+        await expect(abrir(endereco)).rejects.toThrow('HTTP 429');
+        // Outro IP (pelo proxy confiável) tem a própria conta
+        await abrir(endereco, { 'X-Forwarded-For': '203.0.113.9' });
+      } finally {
+        for (const navegador of abertos.splice(0)) navegador.fechar();
+        await limitado.close();
+      }
+    });
+
     it('quem corta a conexão (RST) no meio da recusa não derruba a API', async () => {
       const limitado = await criarApp({ CONEXOES_POR_IP: '1' });
       try {

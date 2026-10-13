@@ -34,6 +34,10 @@ const esquema = z.object({
   PEDIDOS_PUBLICOS_POR_MINUTO: z.coerce.number().int().min(1).default(120),
   // Conexões de WebSocket abertas ao mesmo tempo por IP (cada aba aberta é uma)
   CONEXOES_POR_IP: z.coerce.number().int().min(1).default(20),
+  // Conexões de WebSocket NOVAS por IP a cada minuto: quem abre e fecha em loop nunca passa do
+  // limite acima, mas cada abertura custa um upgrade. O navegador reconecta com espera crescente
+  // (1 s a 30 s), então uma aba faz poucas por minuto
+  CONEXOES_POR_MINUTO: z.coerce.number().int().min(1).default(60),
   // De quem aceitar o X-Forwarded-For (o IP real vale para o limite de pedidos e os logs).
   // Palavras do Express (loopback, uniquelocal...), IPs ou sub-redes separados por vírgula.
   // "true" fica de fora: qualquer um forjaria o próprio IP e escaparia do limite.

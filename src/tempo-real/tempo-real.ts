@@ -13,6 +13,7 @@ import type { Express } from 'express';
 import proxyaddr from 'proxy-addr';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { CONFIG, type Config } from '../config/config.js';
+import { LimitePorJanela } from './limite-por-janela.js';
 import {
   diasAfetados,
   lerMensagem,
@@ -29,6 +30,8 @@ export const MAXIMO_DE_ASSINATURAS = 10;
 /** Mensagens que o navegador pode mandar por janela; passou disso, a conexão cai */
 export const MENSAGENS_POR_JANELA = 30;
 export const JANELA_DAS_MENSAGENS_MS = 10_000;
+/** A janela de CONEXOES_POR_MINUTO */
+export const JANELA_DAS_CONEXOES_MS = 60_000;
 /** De quanto em quanto tempo um ping confere que o outro lado ainda está lá */
 export const INTERVALO_DO_PING_MS = 30_000;
 /** Ao desligar, quanto esperar o navegador responder ao fechamento antes de derrubar */
@@ -74,6 +77,7 @@ export class TempoReal
   private readonly porNegocio = new Map<string, Set<Conexao>>();
   private readonly porUsuario = new Map<string, Set<Conexao>>();
   private readonly porIp = new Map<string, number>();
+  private readonly novasPorIp: LimitePorJanela;
   private http?: Server;
   private ping?: NodeJS.Timeout;
   private readonly aoPedirUpgrade = (
@@ -86,7 +90,12 @@ export class TempoReal
     @Inject(CONFIG) private readonly config: Config,
     private readonly adaptador: HttpAdapterHost,
     private readonly jwt: JwtService,
-  ) {}
+  ) {
+    this.novasPorIp = new LimitePorJanela(
+      config.CONEXOES_POR_MINUTO,
+      JANELA_DAS_CONEXOES_MS,
+    );
+  }
 
   onApplicationBootstrap(): void {
     this.http = this.adaptador.httpAdapter.getHttpServer() as Server;
@@ -199,10 +208,15 @@ export class TempoReal
     // O mesmo IP que o Express usaria (respeita CONFIANCA_NO_PROXY atrás do Caddy)
     const express = this.adaptador.httpAdapter.getInstance<Express>();
     const ip = proxyaddr(req, express.get('trust proxy fn'));
-    if ((this.porIp.get(ip) ?? 0) >= this.config.CONEXOES_POR_IP) {
+    if (
+      (this.porIp.get(ip) ?? 0) >= this.config.CONEXOES_POR_IP ||
+      !this.novasPorIp.cabe(ip)
+    ) {
       recusar(socket, 429, 'Too Many Requests');
       return;
     }
+    // Conta só as aceitas: a recusa custa pouco, e quem é recusado não prolonga a própria espera
+    this.novasPorIp.registrar(ip);
     // Daqui em diante quem trata os erros do socket é o ws
     socket.off('error', aoFalhar);
     this.servidor.handleUpgrade(req, socket, cabeca, (ws) =>
@@ -373,6 +387,8 @@ export class TempoReal
 
   /** Quem não respondeu ao ping anterior caiu sem avisar (Wi-Fi, celular dormindo) */
   private pingar(): void {
+    // Aproveita a volta do ping para esquecer as janelas de conexão que já passaram
+    this.novasPorIp.limpar();
     for (const conexao of this.conexoes) {
       if (!conexao.respondeu) {
         conexao.socket.terminate();
