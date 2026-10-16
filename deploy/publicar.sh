@@ -6,7 +6,7 @@ set -euo pipefail
 
 VM="${VM:-ubuntu@159.112.189.95}"
 CHAVE_SSH="${CHAVE_SSH:-$HOME/.ssh/oracle_bot}"
-DOMINIO="${DOMINIO:-cadence.159-112-189-95.sslip.io}"
+DOMINIO="${DOMINIO:-cadence.andrelagos.dev}"
 PORTA_DO_TUNEL="${PORTA_DO_TUNEL:-15433}"
 cd "$(dirname "$0")/.."
 SSH=(ssh -i "$CHAVE_SSH" -o BatchMode=yes)

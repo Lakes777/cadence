@@ -9,7 +9,7 @@ o dono cadastra profissionais, serviços e horários; o cliente escolhe um horá
 O ponto central é que **dois clientes nunca ficam com o mesmo horário**, nem clicando no mesmo
 milissegundo.
 
-**No ar (demonstração):** https://cadence.159-112-189-95.sslip.io: entre como cliente ou como
+**No ar (demonstração):** https://cadence.andrelagos.dev: entre como cliente ou como
 dono da Barbearia Exemplo, sem cadastro; os dados voltam ao original a cada hora.
 
 ![Cadence em uso: à esquerda, um cliente escolhe Corte com a Camila na sexta e confirma 10:30; à direita, a agenda do dono recebe a reserva na hora, destacada como "Nova", sem recarregar](docs/demo.gif)
