@@ -35,7 +35,7 @@ controle=$(mktemp -u)
 trap '"${SSH[@]}" -S "$controle" -O exit "$VM" 2>/dev/null' EXIT
 # A URL (com a senha) passa só pela memória deste script, nunca pela tela nem por argumento
 url=$("${SSH[@]}" "$VM" "grep '^DATABASE_URL=' cadence/.env | cut -d= -f2-")
-url="${url/@banco:5432/@127.0.0.1:$PORTA_DO_TUNEL}"
+url="${url/@beacon-banco:5432/@127.0.0.1:$PORTA_DO_TUNEL}"
 if ! saida=$(DATABASE_URL="$url" node node_modules/prisma/build/index.js migrate deploy 2>&1); then
 	echo "$saida" | grep -vF "$url" >&2
 	echo "As migrações falharam: nada foi publicado." >&2

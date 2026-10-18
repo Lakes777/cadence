@@ -25,7 +25,7 @@ SQL
 	rede=$(docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' beacon_interna)
 	umask 077
 	cat > ~/cadence/.env <<ENV
-DATABASE_URL=postgresql://cadence_demo:$senha@banco:5432/cadence_demo
+DATABASE_URL=postgresql://cadence_demo:$senha@beacon-banco:5432/cadence_demo
 REDIS_URL=redis://fila:6379
 JWT_SEGREDO=$(openssl rand -hex 32)
 CADENCE_DEMO=true
