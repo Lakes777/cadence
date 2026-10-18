@@ -35,6 +35,10 @@ controle=$(mktemp -u)
 trap '"${SSH[@]}" -S "$controle" -O exit "$VM" 2>/dev/null' EXIT
 # A URL (com a senha) passa só pela memória deste script, nunca pela tela nem por argumento
 url=$("${SSH[@]}" "$VM" "grep '^DATABASE_URL=' cadence/.env | cut -d= -f2-")
+if [[ $url != *@beacon-banco:5432/* ]]; then
+	echo "A DATABASE_URL na VM não aponta para beacon-banco:5432 (o apelido do Postgres do Beacon): ajuste o ~/cadence/.env." >&2
+	exit 1
+fi
 url="${url/@beacon-banco:5432/@127.0.0.1:$PORTA_DO_TUNEL}"
 if ! saida=$(DATABASE_URL="$url" node node_modules/prisma/build/index.js migrate deploy 2>&1); then
 	echo "$saida" | grep -vF "$url" >&2
